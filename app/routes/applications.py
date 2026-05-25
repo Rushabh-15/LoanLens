@@ -15,7 +15,7 @@ from app.services.rules_engine import (
 
 router = APIRouter()
 
-ASSUMED_ANNUAL_RATE = 12
+ASSUMED_ANNUAL_RATE = 12.0
 
 @router.post(
     "/api/v1/applications/analyze-fields",
