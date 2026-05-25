@@ -53,8 +53,8 @@ def evaluate_risk_flags(
     monthly_income: float | None,
     existing_emis: float | None,
     requested_loan_amount: float | None,
-    annual_interest_rate: float | None,
-    tenure_months: int | None
+    tenure_months: int | None,
+    foir: float | None
 ) -> list[str]:
     """
     Return a list of loan application risk flags.
@@ -67,8 +67,8 @@ def evaluate_risk_flags(
         monthly_income,
         existing_emis,
         requested_loan_amount,
-        annual_interest_rate,
-        tenure_months
+        tenure_months,
+        foir
     ]
 
     if any(value is None for value in required_fields):
@@ -78,18 +78,6 @@ def evaluate_risk_flags(
     if monthly_income <= 0 or tenure_months <= 0:
         flags.append("MISSING_CRITICAL_FIELD")
         return flags
-
-    new_emi = calculate_emi(
-        principal=requested_loan_amount,
-        annual_rate=annual_interest_rate,
-        tenure_months=tenure_months
-    )
-
-    foir = calculate_foir(
-        existing_emis=existing_emis,
-        new_emi=new_emi,
-        monthly_income=monthly_income
-    )
 
     if foir > FOIR_THRESHOLD:
         flags.append("FOIR_TOO_HIGH")

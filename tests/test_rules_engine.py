@@ -61,8 +61,8 @@ def test_flag_high_foir():
         monthly_income=60000,
         existing_emis=25000,
         requested_loan_amount=500000,
-        annual_interest_rate=12,
-        tenure_months=60
+        tenure_months=60,
+        foir=0.60
     )
 
     assert "FOIR_TOO_HIGH" in flags
@@ -73,8 +73,8 @@ def test_flag_clean_application():
         monthly_income=120000,
         existing_emis=5000,
         requested_loan_amount=200000,
-        annual_interest_rate=10,
-        tenure_months=60
+        tenure_months=60,
+        foir=0.12
     )
 
     assert flags == []
@@ -85,8 +85,8 @@ def test_flag_income_below_minimum():
         monthly_income=10000,
         existing_emis=2000,
         requested_loan_amount=100000,
-        annual_interest_rate=10,
-        tenure_months=24
+        tenure_months=24,
+        foir=0.30
     )
 
     assert "INCOME_BELOW_MINIMUM" in flags
@@ -97,8 +97,8 @@ def test_flag_amount_disproportionate():
         monthly_income=20000,
         existing_emis=1000,
         requested_loan_amount=1000000,
-        annual_interest_rate=10,
-        tenure_months=60
+        tenure_months=60,
+        foir=0.25
     )
 
     assert "AMOUNT_DISPROPORTIONATE" in flags
@@ -109,8 +109,8 @@ def test_flag_missing_critical_field():
         monthly_income=None,
         existing_emis=1000,
         requested_loan_amount=200000,
-        annual_interest_rate=10,
-        tenure_months=60
+        tenure_months=60,
+        foir=0.20
     )
 
     assert "MISSING_CRITICAL_FIELD" in flags
@@ -121,8 +121,8 @@ def test_flag_zero_income():
         monthly_income=0,
         existing_emis=1000,
         requested_loan_amount=200000,
-        annual_interest_rate=10,
-        tenure_months=60
+        tenure_months=60,
+        foir=0.20
     )
 
     assert "MISSING_CRITICAL_FIELD" in flags
@@ -133,8 +133,8 @@ def test_flag_zero_tenure():
         monthly_income=50000,
         existing_emis=1000,
         requested_loan_amount=200000,
-        annual_interest_rate=10,
-        tenure_months=0
+        tenure_months=0,
+        foir=0.20
     )
 
     assert "MISSING_CRITICAL_FIELD" in flags
