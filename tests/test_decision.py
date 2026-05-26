@@ -100,3 +100,11 @@ def test_review_reason_is_not_empty():
     )
 
     assert reason != ""
+
+def test_decline_reason_contains_triggering_flag():
+    decision, reason = route_decision(
+        risk_flags=["FOIR_TOO_HIGH"],
+        has_low_confidence=False
+    )
+
+    assert "FOIR_TOO_HIGH" in reason
