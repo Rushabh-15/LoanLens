@@ -4,7 +4,6 @@ from app.models.schemas import(
     ApplicantData,
     DecisionResponse,
     RiskMetrics,
-    DecisionType
 )
 
 from app.services.rules_engine import (
@@ -12,6 +11,8 @@ from app.services.rules_engine import (
     calculate_foir,
     evaluate_risk_flags
 )
+
+from app.services.decision import route_decision
 
 router = APIRouter()
 
@@ -49,6 +50,11 @@ def analyze_application_fields(
         foir=foir
     )
 
+    decision, reason = route_decision(
+        risk_flags=risk_flags,
+        has_low_confidence=False
+    )
+
     metrics = RiskMetrics(
         estimated_emi=estimated_emi,
         foir=foir,
@@ -56,8 +62,8 @@ def analyze_application_fields(
     )
 
     return DecisionResponse(
-        decision=DecisionType.NEEDS_REVIEW,
-        reason="Decision router not yet implemented",
+        decision=decision,
+        reason=reason,
         applicant=applicant,
         metrics=metrics
     )
