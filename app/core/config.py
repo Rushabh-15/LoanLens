@@ -17,6 +17,11 @@ CLAUDE_MODEL = os.getenv(
     "claude-haiku-4-5-20251001"
 )
 
+DATABASE_URL = os.getenv(
+    "DATABASE_URL",
+    "sqlite:///loanlens.db"
+)
+
 MAX_TOKENS = 2048
 
 TEMPERATURE = 0
