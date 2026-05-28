@@ -2,6 +2,7 @@ from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.core.config import DATABASE_URL
+print("DATABASE_URL =", DATABASE_URL)
 
 # Base class for all ORM models
 

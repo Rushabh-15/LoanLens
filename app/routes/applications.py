@@ -1,69 +1,64 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends
+from sqlalchemy.orm import Session
 
-from app.models.schemas import(
+from app.db import get_session
+from app.models.schemas import (
     ApplicantData,
     DecisionResponse,
     RiskMetrics,
 )
-
-from app.services.rules_engine import (
-    calculate_emi,
-    calculate_foir,
-    evaluate_risk_flags
-)
-
-from app.services.decision import route_decision
+from app.models.db_models import Application
+from app.services.analysis import analyze_applicant
 
 router = APIRouter()
 
-ASSUMED_ANNUAL_RATE = 12.0
 
 @router.post(
     "/api/v1/applications/analyze-fields",
-    response_model = DecisionResponse
+    response_model=DecisionResponse
 )
-
 def analyze_application_fields(
-    applicant: ApplicantData
+    applicant: ApplicantData,
+    session: Session = Depends(get_session)
 ) -> DecisionResponse:
     """
-    Analyze applicant financial data and return risk metrics.
+    Analyze applicant data → persist result → return response
     """
 
-    estimated_emi = calculate_emi(
-        principal=applicant.requested_amount,
-        annual_rate=ASSUMED_ANNUAL_RATE,
-        tenure_months=applicant.tenure_months
+    # 1. BUSINESS LOGIC
+    result = analyze_applicant(applicant.model_dump())
+
+    # 2. DB PERSISTENCE
+    db_row = Application(
+        extracted_fields={
+            "applicant_data": applicant.model_dump(),
+            "confidence_note": "N/A - human input"
+        },
+        emi=result.emi,
+        foir=result.foir,
+        risk_flags=result.risk_flags,
+        decision=result.decision,
+        reason=result.reason,
+        status="processed"
     )
 
-    foir = calculate_foir(
-        existing_emis=applicant.existing_emis,
-        new_emi=estimated_emi,
-        monthly_income=applicant.monthly_income
-    )
+    try:
+        session.add(db_row)
+        session.commit()
+        session.refresh(db_row)
 
-    risk_flags = evaluate_risk_flags(
-        monthly_income=applicant.monthly_income,
-        existing_emis=applicant.existing_emis,
-        requested_loan_amount=applicant.requested_amount,
-        tenure_months=applicant.tenure_months,
-        foir=foir
-    )
+    except Exception:
+        session.rollback()
+        raise
 
-    decision, reason = route_decision(
-        risk_flags=risk_flags,
-        has_low_confidence=False
-    )
-
-    metrics = RiskMetrics(
-        estimated_emi=estimated_emi,
-        foir=foir,
-        risk_flags=risk_flags
-    )
-
+    # 3. API RESPONSE
     return DecisionResponse(
-        decision=decision,
-        reason=reason,
+        decision=result.decision,
+        reason=result.reason,
         applicant=applicant,
-        metrics=metrics
+        metrics=RiskMetrics(
+            estimated_emi=result.emi,
+            foir=result.foir,
+            risk_flags=result.risk_flags
+        )
     )

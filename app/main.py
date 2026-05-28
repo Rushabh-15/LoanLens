@@ -4,7 +4,7 @@ from app.db import init_db
 from app.routes.applications import router as applications_router
 
 # Import models so SQLAlchemy registers tables
-from app.models.application import Application
+from app.models.db_models import Application
 
 
 app = FastAPI()
