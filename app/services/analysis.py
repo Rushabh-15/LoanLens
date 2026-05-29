@@ -20,7 +20,10 @@ class AnalysisResult:
     reason: str
 
 
-def analyze_applicant(applicant_data: dict) -> AnalysisResult:
+def analyze_applicant(
+    applicant_data: dict,
+    has_low_confidence: bool = False,
+) -> AnalysisResult:
     """
     Pure business logic orchestration layer.
 
@@ -69,7 +72,7 @@ def analyze_applicant(applicant_data: dict) -> AnalysisResult:
     # Decision routing
     decision, reason = route_decision(
         risk_flags=risk_flags,
-        has_low_confidence=False,
+        has_low_confidence=has_low_confidence,
     )
 
     return AnalysisResult(

@@ -44,23 +44,6 @@ class ApplicantData(BaseModel):
 
 
 # -------------------------
-# Decision Output Models
-# -------------------------
-class RiskMetrics(BaseModel):
-    estimated_emi: float
-    foir: float
-    risk_flags: list[str]
-
-
-class DecisionResponse(BaseModel):
-    decision: DecisionType
-    reason: str
-
-    applicant: ApplicantData
-    metrics: RiskMetrics
-
-
-# -------------------------
 # Typed Extraction Wrappers
 # -------------------------
 class StringField(BaseModel):
@@ -105,38 +88,64 @@ class ExtractedFields(BaseModel):
         return cls(
             name=StringField(
                 value=None,
-                confidence=Confidence.low
+                confidence=Confidence.low,
             ),
             age=IntField(
                 value=None,
-                confidence=Confidence.low
+                confidence=Confidence.low,
             ),
             employment_type=StringField(
                 value=None,
-                confidence=Confidence.low
+                confidence=Confidence.low,
             ),
             employer=StringField(
                 value=None,
-                confidence=Confidence.low
+                confidence=Confidence.low,
             ),
             monthly_income=FloatField(
                 value=None,
-                confidence=Confidence.low
+                confidence=Confidence.low,
             ),
             existing_emis=FloatField(
                 value=None,
-                confidence=Confidence.low
+                confidence=Confidence.low,
             ),
             requested_amount=FloatField(
                 value=None,
-                confidence=Confidence.low
+                confidence=Confidence.low,
             ),
             tenure_months=IntField(
                 value=None,
-                confidence=Confidence.low
+                confidence=Confidence.low,
             ),
             purpose=StringField(
                 value=None,
-                confidence=Confidence.low
+                confidence=Confidence.low,
             ),
         )
+
+
+# -------------------------
+# Decision Output Models
+# -------------------------
+class RiskMetrics(BaseModel):
+    estimated_emi: float
+    foir: float
+    risk_flags: list[str]
+
+
+class DecisionResponse(BaseModel):
+    decision: DecisionType
+    reason: str
+
+    applicant: ApplicantData
+    metrics: RiskMetrics
+
+
+class ExtractionDecisionResponse(BaseModel):
+    decision: DecisionType
+    reason: str
+
+    extracted_fields: ExtractedFields
+    low_confidence: bool
+    metrics: RiskMetrics
