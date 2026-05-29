@@ -40,27 +40,61 @@ def analyze_applicant(
     requested_amount = applicant_data["requested_amount"]
     tenure_months = applicant_data["tenure_months"]
 
-    # Default interest rate for prototype
+    # ----------------------------------
+    # Missing required numeric inputs
+    # ----------------------------------
+    required_numeric_values = [
+        monthly_income,
+        existing_emis,
+        requested_amount,
+        tenure_months,
+    ]
+
+    if any(value is None for value in required_numeric_values):
+        risk_flags = ["MISSING_CRITICAL_FIELD"]
+
+        decision, reason = route_decision(
+            risk_flags=risk_flags,
+            has_low_confidence=has_low_confidence,
+        )
+
+        return AnalysisResult(
+            emi=0.0,
+            foir=0.0,
+            risk_flags=risk_flags,
+            decision=decision,
+            reason=reason,
+        )
+
+    # ----------------------------------
+    # Default interest rate
+    # ----------------------------------
     annual_interest_rate = applicant_data.get(
         "annual_interest_rate",
         12.0,
     )
 
+    # ----------------------------------
     # EMI calculation
+    # ----------------------------------
     emi = calculate_emi(
         principal=requested_amount,
         annual_rate=annual_interest_rate,
         tenure_months=tenure_months,
     )
 
+    # ----------------------------------
     # FOIR calculation
+    # ----------------------------------
     foir = calculate_foir(
         existing_emis=existing_emis,
         new_emi=emi,
         monthly_income=monthly_income,
     )
 
+    # ----------------------------------
     # Risk evaluation
+    # ----------------------------------
     risk_flags = evaluate_risk_flags(
         monthly_income=monthly_income,
         existing_emis=existing_emis,
@@ -69,7 +103,9 @@ def analyze_applicant(
         foir=foir,
     )
 
+    # ----------------------------------
     # Decision routing
+    # ----------------------------------
     decision, reason = route_decision(
         risk_flags=risk_flags,
         has_low_confidence=has_low_confidence,

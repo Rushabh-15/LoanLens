@@ -125,30 +125,14 @@ async def analyze_application_upload(
         "purpose": extracted.purpose.value,
     }
 
-    if low_conf:
-        decision = DecisionType.NEEDS_REVIEW
-        reason = (
-            "Low-confidence extraction; "
-            "routed to human review."
-        )
-        emi = 0.0
-        foir = 0.0
-        risk_flags = ["MISSING_CRITICAL_FIELD"]
-    else:
-        result = analyze_applicant(
-            applicant_data,
-            has_low_confidence=False,
-        )
-
-        decision = result.decision
-        reason = result.reason
-        emi = result.emi
-        foir = result.foir
-        risk_flags = result.risk_flags
+    result = analyze_applicant(
+        applicant_data,
+        has_low_confidence=low_conf,
+    )
 
     status = (
         StatusType.NEEDS_REVIEW
-        if decision == DecisionType.NEEDS_REVIEW
+        if result.decision == DecisionType.NEEDS_REVIEW
         else StatusType.PROCESSED
     )
 
@@ -158,11 +142,11 @@ async def analyze_application_upload(
             "filename": file.filename,
             "fields": extracted.model_dump(),
         },
-        emi=emi,
-        foir=foir,
-        risk_flags=risk_flags,
-        decision=decision.value,
-        reason=reason,
+        emi=result.emi,
+        foir=result.foir,
+        risk_flags=result.risk_flags,
+        decision=result.decision.value,
+        reason=result.reason,
         status=status.value,
     )
 
@@ -176,14 +160,14 @@ async def analyze_application_upload(
 
     return ExtractionDecisionResponse(
         application_id=db_row.id,
-        decision=decision,
-        reason=reason,
+        decision=result.decision,
+        reason=result.reason,
         extracted_fields=extracted,
         low_confidence=low_conf,
         metrics=RiskMetrics(
-            estimated_emi=emi,
-            foir=foir,
-            risk_flags=risk_flags,
+            estimated_emi=result.emi,
+            foir=result.foir,
+            risk_flags=result.risk_flags,
         ),
     )
 

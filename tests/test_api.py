@@ -62,6 +62,13 @@ def low_confidence_extracted_fields() -> ExtractedFields:
     return fields
 
 
+def missing_value_extracted_fields() -> ExtractedFields:
+    fields = all_high_extracted_fields()
+    fields.monthly_income.value = None
+    fields.monthly_income.confidence = Confidence.low
+    return fields
+
+
 def count_applications() -> int:
     with SessionLocal() as session:
         return session.query(Application).count()
@@ -131,7 +138,45 @@ def test_upload_pdf_low_confidence_goes_to_review(monkeypatch):
 
     assert body["decision"] == "needs_review"
     assert body["low_confidence"] is True
-    assert "MISSING_CRITICAL_FIELD" in body["metrics"]["risk_flags"]
+
+    # Low confidence alone should not invent a missing-field flag.
+    # Values are present, so metrics should still be honestly computed.
+    assert body["metrics"]["risk_flags"] == []
+    assert body["metrics"]["estimated_emi"] > 0
+    assert body["metrics"]["foir"] > 0
+
+
+def test_upload_pdf_missing_value_goes_to_review(monkeypatch):
+    def fake_call_claude(raw_text: str) -> ExtractedFields:
+        return missing_value_extracted_fields()
+
+    monkeypatch.setattr(
+        llm_extractor,
+        "_call_claude",
+        fake_call_claude,
+    )
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/applications/analyze",
+            files={
+                "file": (
+                    "sample_application.pdf",
+                    make_text_pdf(),
+                    "application/pdf",
+                )
+            },
+        )
+
+    assert response.status_code == 200
+
+    body = response.json()
+
+    assert body["decision"] == "needs_review"
+    assert body["low_confidence"] is True
+    assert body["metrics"]["estimated_emi"] == 0.0
+    assert body["metrics"]["foir"] == 0.0
+    assert body["metrics"]["risk_flags"] == ["MISSING_CRITICAL_FIELD"]
 
 
 def test_upload_non_pdf_returns_400():
