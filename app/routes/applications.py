@@ -5,16 +5,19 @@ from fastapi import (
     File,
     HTTPException,
 )
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.db import get_session
 from app.models.db_models import Application
 from app.models.schemas import (
     ApplicantData,
+    ApplicationRecordResponse,
     DecisionResponse,
     ExtractionDecisionResponse,
     RiskMetrics,
     DecisionType,
+    StatusType,
 )
 from app.services.analysis import analyze_applicant
 from app.services.pdf_extractor import (
@@ -38,9 +41,9 @@ def analyze_application_fields(
     result = analyze_applicant(applicant.model_dump())
 
     status = (
-        "needs_review"
+        StatusType.NEEDS_REVIEW
         if result.decision == DecisionType.NEEDS_REVIEW
-        else "processed"
+        else StatusType.PROCESSED
     )
 
     db_row = Application(
@@ -54,7 +57,7 @@ def analyze_application_fields(
         risk_flags=result.risk_flags,
         decision=result.decision.value,
         reason=result.reason,
-        status=status,
+        status=status.value,
     )
 
     try:
@@ -66,7 +69,7 @@ def analyze_application_fields(
         raise
 
     return DecisionResponse(
-        decision=result.decision.value,
+        decision=result.decision,
         reason=result.reason,
         applicant=applicant,
         metrics=RiskMetrics(
@@ -144,9 +147,9 @@ async def analyze_application_upload(
         risk_flags = result.risk_flags
 
     status = (
-        "needs_review"
+        StatusType.NEEDS_REVIEW
         if decision == DecisionType.NEEDS_REVIEW
-        else "processed"
+        else StatusType.PROCESSED
     )
 
     db_row = Application(
@@ -160,7 +163,7 @@ async def analyze_application_upload(
         risk_flags=risk_flags,
         decision=decision.value,
         reason=reason,
-        status=status,
+        status=status.value,
     )
 
     try:
@@ -172,6 +175,7 @@ async def analyze_application_upload(
         raise
 
     return ExtractionDecisionResponse(
+        application_id=db_row.id,
         decision=decision,
         reason=reason,
         extracted_fields=extracted,
@@ -182,3 +186,38 @@ async def analyze_application_upload(
             risk_flags=risk_flags,
         ),
     )
+
+
+@router.get(
+    "/api/v1/applications/{application_id}",
+    response_model=ApplicationRecordResponse,
+)
+def get_application(
+    application_id: int,
+    session: Session = Depends(get_session),
+) -> ApplicationRecordResponse:
+    application = session.get(Application, application_id)
+
+    if application is None:
+        raise HTTPException(
+            status_code=404,
+            detail="Application not found",
+        )
+
+    return application
+
+
+@router.get(
+    "/api/v1/review-queue",
+    response_model=list[ApplicationRecordResponse],
+)
+def get_review_queue(
+    session: Session = Depends(get_session),
+) -> list[ApplicationRecordResponse]:
+    applications = session.scalars(
+        select(Application).where(
+            Application.status == StatusType.NEEDS_REVIEW.value
+        )
+    ).all()
+
+    return applications

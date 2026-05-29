@@ -1,7 +1,8 @@
+from datetime import datetime
 from enum import Enum
-from typing import Optional
+from typing import Any, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, ConfigDict, Field
 
 
 # -------------------------
@@ -16,6 +17,11 @@ class DecisionType(str, Enum):
     ELIGIBLE = "eligible"
     DECLINE = "decline"
     NEEDS_REVIEW = "needs_review"
+
+
+class StatusType(str, Enum):
+    NEEDS_REVIEW = "needs_review"
+    PROCESSED = "processed"
 
 
 class Confidence(str, Enum):
@@ -81,47 +87,16 @@ class ExtractedFields(BaseModel):
 
     @classmethod
     def all_low(cls) -> "ExtractedFields":
-        """
-        Safe fallback object used when extraction fails.
-        """
-
         return cls(
-            name=StringField(
-                value=None,
-                confidence=Confidence.low,
-            ),
-            age=IntField(
-                value=None,
-                confidence=Confidence.low,
-            ),
-            employment_type=StringField(
-                value=None,
-                confidence=Confidence.low,
-            ),
-            employer=StringField(
-                value=None,
-                confidence=Confidence.low,
-            ),
-            monthly_income=FloatField(
-                value=None,
-                confidence=Confidence.low,
-            ),
-            existing_emis=FloatField(
-                value=None,
-                confidence=Confidence.low,
-            ),
-            requested_amount=FloatField(
-                value=None,
-                confidence=Confidence.low,
-            ),
-            tenure_months=IntField(
-                value=None,
-                confidence=Confidence.low,
-            ),
-            purpose=StringField(
-                value=None,
-                confidence=Confidence.low,
-            ),
+            name=StringField(value=None, confidence=Confidence.low),
+            age=IntField(value=None, confidence=Confidence.low),
+            employment_type=StringField(value=None, confidence=Confidence.low),
+            employer=StringField(value=None, confidence=Confidence.low),
+            monthly_income=FloatField(value=None, confidence=Confidence.low),
+            existing_emis=FloatField(value=None, confidence=Confidence.low),
+            requested_amount=FloatField(value=None, confidence=Confidence.low),
+            tenure_months=IntField(value=None, confidence=Confidence.low),
+            purpose=StringField(value=None, confidence=Confidence.low),
         )
 
 
@@ -143,9 +118,24 @@ class DecisionResponse(BaseModel):
 
 
 class ExtractionDecisionResponse(BaseModel):
+    application_id: int
     decision: DecisionType
     reason: str
 
     extracted_fields: ExtractedFields
     low_confidence: bool
     metrics: RiskMetrics
+
+
+class ApplicationRecordResponse(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    extracted_fields: dict[str, Any]
+    emi: float
+    foir: float
+    risk_flags: list[str]
+    decision: DecisionType
+    reason: str
+    status: StatusType
+    created_at: datetime
