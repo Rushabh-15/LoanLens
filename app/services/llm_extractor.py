@@ -1,8 +1,8 @@
+import logging
 import anthropic
 
 from anthropic import APIError
 from pydantic import ValidationError
-import logging
 logger = logging.getLogger(__name__)
 
 from app.core.config import (

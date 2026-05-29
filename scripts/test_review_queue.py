@@ -3,17 +3,31 @@ from sqlalchemy import select
 from app.db import SessionLocal
 from app.models.db_models import Application
 
-db = SessionLocal()
 
-query = select(Application).where(
-    Application.decision == "needs_review"
-)
+def main():
+    db = SessionLocal()
 
-results = db.execute(query)
+    try:
+        query = select(Application).where(
+            Application.status == "needs_review"
+        )
 
-apps = results.scalars().all()
+        results = db.execute(query)
 
-for app in apps:
-    print(app.id, app.decision)
+        applications = results.scalars().all()
 
-db.close()
+        print(f"\nFound {len(applications)} applications:\n")
+
+        for app in applications:
+            print(
+                f"ID={app.id} | "
+                f"Decision={app.decision} | "
+                f"Status={app.status}"
+            )
+
+    finally:
+        db.close()
+
+
+if __name__ == "__main__":
+    main()

@@ -1,24 +1,31 @@
 from dataclasses import dataclass
 
+from app.models.schemas import DecisionType
+
+from app.services.rules_engine import (
+    calculate_emi,
+    calculate_foir,
+    evaluate_risk_flags,
+)
+
+from app.services.decision import route_decision
+
 
 @dataclass
 class AnalysisResult:
     emi: float
     foir: float
     risk_flags: list[str]
-    decision: str
+    decision: DecisionType
     reason: str
 
 
 def analyze_applicant(applicant_data: dict) -> AnalysisResult:
     """
-    Pure business logic layer.
+    Pure business logic orchestration layer.
 
-    Input:
-        applicant data dictionary
-
-    Output:
-        underwriting analysis result
+    This service composes already-tested
+    underwriting functions.
 
     No FastAPI.
     No database.
@@ -27,56 +34,43 @@ def analyze_applicant(applicant_data: dict) -> AnalysisResult:
 
     monthly_income = applicant_data["monthly_income"]
     existing_emis = applicant_data["existing_emis"]
-    requested_loan_amount = applicant_data["requested_amount"]
+    requested_amount = applicant_data["requested_amount"]
     tenure_months = applicant_data["tenure_months"]
-    annual_interest_rate = 12
 
-    # Convert annual % rate → monthly decimal
-    monthly_interest_rate = annual_interest_rate / 12 / 100
+    # Default interest rate for prototype
+    annual_interest_rate = applicant_data.get(
+        "annual_interest_rate",
+        12.0,
+    )
 
-    # EMI Calculation
-    if monthly_interest_rate == 0:
-        emi = requested_loan_amount / tenure_months
+    # EMI calculation
+    emi = calculate_emi(
+        principal=requested_amount,
+        annual_rate=annual_interest_rate,
+        tenure_months=tenure_months,
+    )
 
-    else:
-        emi = (
-            requested_loan_amount
-            * monthly_interest_rate
-            * (1 + monthly_interest_rate) ** tenure_months
-        ) / (
-            (1 + monthly_interest_rate) ** tenure_months - 1
-        )
+    # FOIR calculation
+    foir = calculate_foir(
+        existing_emis=existing_emis,
+        new_emi=emi,
+        monthly_income=monthly_income,
+    )
 
-    emi = round(emi, 2)
+    # Risk evaluation
+    risk_flags = evaluate_risk_flags(
+        monthly_income=monthly_income,
+        existing_emis=existing_emis,
+        requested_loan_amount=requested_amount,
+        tenure_months=tenure_months,
+        foir=foir,
+    )
 
-    # FOIR Calculation
-    total_monthly_obligations = existing_emis + emi
-
-    foir = total_monthly_obligations / monthly_income
-
-    foir = round(foir, 2)
-
-    # Risk Flags
-    risk_flags = []
-
-    if foir > 0.5:
-        risk_flags.append("high_foir")
-
-    if monthly_income < 30000:
-        risk_flags.append("low_income")
-
-    # Decision Logic
-    if foir >= 0.7:
-        decision = "decline"
-        reason = "FOIR too high"
-
-    elif foir >= 0.5:
-        decision = "needs_review"
-        reason = "Borderline FOIR"
-
-    else:
-        decision = "eligible"
-        reason = "Acceptable FOIR"
+    # Decision routing
+    decision, reason = route_decision(
+        risk_flags=risk_flags,
+        has_low_confidence=False,
+    )
 
     return AnalysisResult(
         emi=emi,

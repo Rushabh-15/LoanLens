@@ -3,30 +3,30 @@ from app.models.db_models import Application
 
 
 def main():
-    # Step 1: Create tables (safe to run multiple times)
+    # Step 1: Create tables
     init_db()
 
     # Step 2: Open DB session
     session = SessionLocal()
 
     try:
-        # Step 3: Create a dummy application row
+        # Step 3: Create dummy application
         app = Application(
             extracted_fields={
                 "name": {
                     "value": "John Doe",
-                    "confidence": 0.97
+                    "confidence": "high"
                 },
-                "income": {
+                "monthly_income": {
                     "value": 75000,
-                    "confidence": 0.93
+                    "confidence": "high"
                 }
             },
             emi=14500.75,
             foir=0.38,
-            risk_flags=["low_risk", "stable_income"],
+            risk_flags=[],
             decision="eligible",
-            reason="Strong income and low FOIR",
+            reason="Passed all checks.",
             status="completed"
         )
 
@@ -34,10 +34,9 @@ def main():
         session.add(app)
         session.commit()
 
-        # ID should now be generated
         print(f"\nInserted row with ID: {app.id}")
 
-        # Step 5: Fetch it back using primary key lookup
+        # Step 5: Fetch row back
         fetched = session.get(Application, app.id)
 
         print("\nFetched from DB:")
@@ -54,6 +53,7 @@ def main():
 
     except Exception as e:
         session.rollback()
+
         print("\n❌ DB isolation test FAILED")
         print("Error:", str(e))
 
