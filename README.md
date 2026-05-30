@@ -6,6 +6,10 @@ LoanLens is an AI-assisted loan application analysis system that automates docum
 
 ---
 
+**Tech Stack:** FastAPI, Pydantic v2, SQLAlchemy 2.0, Anthropic Claude (Structured Outputs), SQLite/PostgreSQL, pytest.
+
+---
+
 ## Architecture
 
 ```text
@@ -28,6 +32,13 @@ The key design principle is that the LLM reads documents, while deterministic Py
 ---
 
 ## Setup
+
+### Requirements
+
+* Python 3.11+
+* Anthropic API key
+* No external database required for local development (SQLite is the default)
+
 
 ### 1. Create and activate a virtual environment
 
@@ -132,6 +143,26 @@ sample_data/sample_application.pdf
 ```
 
 5. Execute the request and inspect the returned extraction results, risk metrics, and lending decision.
+
+---
+
+## Testing
+
+LoanLens includes a comprehensive automated test suite covering the deterministic decisioning logic, API behavior, persistence layer, extraction workflow, and review routing.
+
+The rules engine and decision router are tested against known inputs and expected outcomes to ensure lending decisions remain deterministic and reproducible. LLM-dependent functionality is tested using mocked responses rather than live API calls, allowing the test suite to run reliably without network access or API costs.
+
+The project currently contains approximately 39 automated tests covering happy paths, failure modes, low-confidence routing, database persistence, PDF processing, and API endpoints.
+
+Run the test suite with:
+
+```bash
+pytest -q
+```
+
+Extraction quality is measured separately through the evaluation harness in the `eval/` directory. This keeps correctness testing and extraction-accuracy measurement independent.
+
+---
 
 ## Design Decisions
 
