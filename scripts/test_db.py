@@ -1,5 +1,6 @@
 from app.db import init_db, SessionLocal
 from app.models.db_models import Application
+from app.models.schemas import StatusType
 
 
 def main():
@@ -27,7 +28,7 @@ def main():
             risk_flags=[],
             decision="eligible",
             reason="Passed all checks.",
-            status="completed"
+            status=StatusType.PROCESSED.value
         )
 
         # Step 4: Insert into DB

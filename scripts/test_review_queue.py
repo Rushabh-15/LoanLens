@@ -1,3 +1,4 @@
+from app.models.schemas import StatusType
 from sqlalchemy import select
 
 from app.db import SessionLocal
@@ -9,7 +10,7 @@ def main():
 
     try:
         query = select(Application).where(
-            Application.status == "needs_review"
+            Application.status == StatusType.NEEDS_REVIEW.value
         )
 
         results = db.execute(query)
