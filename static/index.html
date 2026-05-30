@@ -1,0 +1,653 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>LoanLens Demo</title>
+
+  <style>
+    :root {
+      --bg: #f6f8fc;
+      --card: #ffffff;
+      --text: #0f172a;
+      --muted: #64748b;
+      --border: #e2e8f0;
+      --primary: #2563eb;
+      --primary-dark: #1d4ed8;
+      --primary-soft: #eff6ff;
+      --success: #047857;
+      --error: #b91c1c;
+      --code-bg: #0b1120;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+    }
+
+    body {
+      min-height: 100vh;
+      font-family: Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Arial, sans-serif;
+      background:
+        radial-gradient(circle at top left, rgba(37, 99, 235, 0.18), transparent 32%),
+        radial-gradient(circle at top right, rgba(79, 70, 229, 0.12), transparent 28%),
+        linear-gradient(180deg, #f8fbff 0%, var(--bg) 100%);
+      color: var(--text);
+      padding: 48px 20px;
+    }
+
+    .page {
+      max-width: 1040px;
+      margin: 0 auto;
+    }
+
+    .card {
+      background: rgba(255, 255, 255, 0.94);
+      backdrop-filter: blur(12px);
+      border: 1px solid rgba(226, 232, 240, 0.9);
+      border-radius: 28px;
+      padding: 38px;
+      box-shadow:
+        0 24px 70px rgba(15, 23, 42, 0.10),
+        0 1px 2px rgba(15, 23, 42, 0.04);
+    }
+
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      background: linear-gradient(135deg, #e0e7ff, #dbeafe);
+      color: #3730a3;
+      font-size: 0.82rem;
+      font-weight: 800;
+      padding: 8px 14px;
+      border-radius: 999px;
+      margin-bottom: 20px;
+      border: 1px solid #c7d2fe;
+    }
+
+    .badge::before {
+      content: "";
+      width: 8px;
+      height: 8px;
+      border-radius: 999px;
+      background: #2563eb;
+      box-shadow: 0 0 0 4px rgba(37, 99, 235, 0.16);
+    }
+
+    h1 {
+      font-size: clamp(2.2rem, 5vw, 3.6rem);
+      line-height: 1;
+      letter-spacing: -0.06em;
+      color: #020617;
+      margin-bottom: 16px;
+    }
+
+    .subtitle {
+      max-width: 800px;
+      color: var(--muted);
+      line-height: 1.75;
+      font-size: 1.03rem;
+      margin-bottom: 30px;
+    }
+
+    .pipeline {
+      background: linear-gradient(180deg, #f8fafc, #f1f5f9);
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 18px;
+      margin-bottom: 28px;
+      overflow-x: auto;
+    }
+
+    .pipeline-label {
+      font-size: 0.75rem;
+      font-weight: 900;
+      color: var(--muted);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      margin-bottom: 10px;
+    }
+
+    .pipeline-flow {
+      font-family: "SFMono-Regular", Consolas, monospace;
+      font-size: 0.93rem;
+      color: #0f172a;
+      white-space: nowrap;
+    }
+
+    .upload-box {
+      border: 1.5px dashed #bfdbfe;
+      background: linear-gradient(180deg, #ffffff, #f8fafc);
+      border-radius: 20px;
+      padding: 24px;
+      margin-bottom: 24px;
+      transition: 0.2s ease;
+    }
+
+    .upload-box.dragover {
+      border-color: var(--primary);
+      background: var(--primary-soft);
+      transform: translateY(-1px);
+    }
+
+    .upload-title {
+      display: block;
+      font-weight: 900;
+      margin-bottom: 8px;
+      color: #020617;
+      font-size: 1rem;
+    }
+
+    .upload-help {
+      color: var(--muted);
+      font-size: 0.94rem;
+      margin-bottom: 14px;
+      line-height: 1.55;
+    }
+
+    input[type="file"] {
+      width: 100%;
+      background: #ffffff;
+      border: 1px solid #cbd5e1;
+      border-radius: 14px;
+      padding: 13px;
+      font-size: 0.95rem;
+    }
+
+    input[type="file"]:focus {
+      outline: 3px solid rgba(37, 99, 235, 0.18);
+      border-color: var(--primary);
+    }
+
+    .selected-file {
+      margin-top: 12px;
+      color: #334155;
+      font-size: 0.9rem;
+      word-break: break-word;
+    }
+
+    .actions {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+      margin-top: 18px;
+    }
+
+    button {
+      border: none;
+      border-radius: 14px;
+      padding: 12px 18px;
+      font-size: 0.94rem;
+      font-weight: 900;
+      cursor: pointer;
+      transition: 0.18s ease;
+    }
+
+    button:hover {
+      transform: translateY(-1px);
+    }
+
+    button:active {
+      transform: translateY(0);
+    }
+
+    button:disabled {
+      cursor: not-allowed;
+      opacity: 0.6;
+      transform: none;
+    }
+
+    .primary-btn {
+      background: linear-gradient(135deg, var(--primary), #4f46e5);
+      color: white;
+      box-shadow: 0 10px 22px rgba(37, 99, 235, 0.24);
+    }
+
+    .primary-btn:hover {
+      background: linear-gradient(135deg, var(--primary-dark), #4338ca);
+    }
+
+    .secondary-btn {
+      background: #eef2ff;
+      color: #3730a3;
+      border: 1px solid #c7d2fe;
+    }
+
+    .secondary-btn:hover {
+      background: #e0e7ff;
+    }
+
+    .status {
+      font-weight: 900;
+      color: #334155;
+    }
+
+    .status.success {
+      color: var(--success);
+    }
+
+    .status.error {
+      color: var(--error);
+    }
+
+    .status.loading::after {
+      content: "";
+      display: inline-block;
+      width: 8px;
+      height: 8px;
+      margin-left: 8px;
+      border-radius: 50%;
+      background: var(--primary);
+      animation: pulse 0.9s infinite ease-in-out;
+    }
+
+    @keyframes pulse {
+      0%, 100% {
+        opacity: 0.25;
+        transform: scale(0.8);
+      }
+      50% {
+        opacity: 1;
+        transform: scale(1);
+      }
+    }
+
+    .summary {
+      display: none;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 14px;
+      margin-bottom: 24px;
+    }
+
+    .summary-card {
+      background: #ffffff;
+      border: 1px solid var(--border);
+      border-radius: 18px;
+      padding: 16px;
+      box-shadow: 0 8px 24px rgba(15, 23, 42, 0.04);
+    }
+
+    .summary-label {
+      color: var(--muted);
+      font-size: 0.74rem;
+      font-weight: 900;
+      text-transform: uppercase;
+      letter-spacing: 0.07em;
+      margin-bottom: 7px;
+    }
+
+    .summary-value {
+      color: #020617;
+      font-weight: 950;
+      font-size: 1.05rem;
+      word-break: break-word;
+    }
+
+    .response-header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      margin-bottom: 12px;
+    }
+
+    .response-header h2 {
+      font-size: 1.14rem;
+      color: #020617;
+      letter-spacing: -0.02em;
+    }
+
+    .endpoint {
+      font-size: 0.85rem;
+      color: var(--muted);
+    }
+
+    code {
+      font-family: "SFMono-Regular", Consolas, monospace;
+    }
+
+    .endpoint code,
+    .footer-note code,
+    .upload-help code {
+      background: #eef2ff;
+      color: #3730a3;
+      padding: 3px 7px;
+      border-radius: 7px;
+    }
+
+    pre {
+      background:
+        linear-gradient(180deg, rgba(255,255,255,0.03), transparent),
+        var(--code-bg);
+      color: #e5e7eb;
+      border-radius: 20px;
+      padding: 22px;
+      min-height: 340px;
+      overflow-x: auto;
+      line-height: 1.6;
+      font-size: 0.9rem;
+      white-space: pre-wrap;
+      word-break: break-word;
+      border: 1px solid #1e293b;
+      box-shadow: inset 0 1px 0 rgba(255,255,255,0.04);
+    }
+
+    .footer-note {
+      margin-top: 18px;
+      color: var(--muted);
+      font-size: 0.9rem;
+      line-height: 1.5;
+    }
+
+    @media (max-width: 760px) {
+      body {
+        padding: 24px 14px;
+      }
+
+      .card {
+        padding: 24px;
+        border-radius: 22px;
+      }
+
+      .summary {
+        grid-template-columns: 1fr;
+      }
+
+      .response-header {
+        align-items: flex-start;
+        flex-direction: column;
+      }
+
+      button {
+        width: 100%;
+      }
+
+      .actions {
+        align-items: stretch;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <main class="page">
+    <section class="card">
+      <span class="badge">AI-Powered Lending Demo</span>
+
+      <h1>LoanLens</h1>
+
+      <p class="subtitle">
+        Upload a loan application PDF and run the full LoanLens analysis pipeline.
+        The LLM extracts applicant fields from the document, while deterministic
+        Python rules calculate EMI, FOIR, risk flags, and the final lending decision.
+      </p>
+
+      <section class="pipeline" aria-label="LoanLens pipeline">
+        <div class="pipeline-label">Pipeline</div>
+        <div class="pipeline-flow">
+          PDF → Text Extraction → LLM Extraction → Confidence Check → Rules Engine → Decision Router → Database → JSON Response
+        </div>
+      </section>
+
+      <section class="upload-box" id="uploadBox">
+        <label class="upload-title" for="pdfFile">Upload loan application PDF</label>
+
+        <p class="upload-help">
+          Select or drag a PDF file here. For a quick demo, use
+          <code>sample_data/sample_application.pdf</code>.
+        </p>
+
+        <input id="pdfFile" type="file" accept="application/pdf,.pdf" />
+
+        <div class="selected-file" id="selectedFile">
+          No file selected.
+        </div>
+
+        <div class="actions">
+          <button class="primary-btn" id="analyzeBtn" type="button">
+            Analyze Application
+          </button>
+
+          <button class="secondary-btn" id="clearBtn" type="button">
+            Clear
+          </button>
+
+          <button class="secondary-btn" id="copyBtn" type="button">
+            Copy JSON
+          </button>
+
+          <span id="status" class="status"></span>
+        </div>
+      </section>
+
+      <section class="summary" id="summary">
+        <div class="summary-card">
+          <div class="summary-label">Decision</div>
+          <div class="summary-value" id="decisionValue">—</div>
+        </div>
+
+        <div class="summary-card">
+          <div class="summary-label">FOIR</div>
+          <div class="summary-value" id="foirValue">—</div>
+        </div>
+
+        <div class="summary-card">
+          <div class="summary-label">Risk Flags</div>
+          <div class="summary-value" id="riskFlagsValue">—</div>
+        </div>
+      </section>
+
+      <div class="response-header">
+        <h2>API Response</h2>
+        <div class="endpoint">
+          Endpoint: <code>/api/v1/applications/analyze</code>
+        </div>
+      </div>
+
+      <pre id="output">Waiting for PDF upload...</pre>
+
+      <p class="footer-note">
+        Swagger remains available at <code>/docs</code>. This page is only a lightweight demo UI.
+      </p>
+    </section>
+  </main>
+
+  <script>
+    const fileInput = document.getElementById("pdfFile");
+    const analyzeBtn = document.getElementById("analyzeBtn");
+    const clearBtn = document.getElementById("clearBtn");
+    const copyBtn = document.getElementById("copyBtn");
+    const statusEl = document.getElementById("status");
+    const outputEl = document.getElementById("output");
+    const selectedFileEl = document.getElementById("selectedFile");
+    const uploadBox = document.getElementById("uploadBox");
+
+    const summaryEl = document.getElementById("summary");
+    const decisionValue = document.getElementById("decisionValue");
+    const foirValue = document.getElementById("foirValue");
+    const riskFlagsValue = document.getElementById("riskFlagsValue");
+
+    analyzeBtn.addEventListener("click", analyzePdf);
+    clearBtn.addEventListener("click", clearPage);
+    copyBtn.addEventListener("click", copyJson);
+    fileInput.addEventListener("change", updateSelectedFile);
+
+    uploadBox.addEventListener("dragover", (event) => {
+      event.preventDefault();
+      uploadBox.classList.add("dragover");
+    });
+
+    uploadBox.addEventListener("dragleave", () => {
+      uploadBox.classList.remove("dragover");
+    });
+
+    uploadBox.addEventListener("drop", (event) => {
+      event.preventDefault();
+      uploadBox.classList.remove("dragover");
+
+      const file = event.dataTransfer.files[0];
+
+      if (!file) {
+        return;
+      }
+
+      const dataTransfer = new DataTransfer();
+      dataTransfer.items.add(file);
+      fileInput.files = dataTransfer.files;
+
+      updateSelectedFile();
+    });
+
+    function updateSelectedFile() {
+      if (!fileInput.files.length) {
+        selectedFileEl.textContent = "No file selected.";
+        return;
+      }
+
+      const file = fileInput.files[0];
+      selectedFileEl.textContent = `Selected: ${file.name} (${formatFileSize(file.size)})`;
+    }
+
+    async function analyzePdf() {
+      resetStatus();
+
+      if (!fileInput.files.length) {
+        setStatus("Please select a PDF file first.", "error");
+        return;
+      }
+
+      const file = fileInput.files[0];
+
+      if (!isPdf(file)) {
+        setStatus("Please upload a valid PDF file.", "error");
+        return;
+      }
+
+      const formData = new FormData();
+      formData.append("file", file);
+
+      setLoading(true);
+      setStatus("Processing application...", "loading");
+      outputEl.textContent = "Analyzing PDF...";
+      hideSummary();
+
+      try {
+        const response = await fetch("/api/v1/applications/analyze", {
+          method: "POST",
+          body: formData
+        });
+
+        const data = await safeReadJson(response);
+
+        if (response.ok) {
+          setStatus("Analysis completed successfully.", "success");
+          showSummary(data);
+        } else {
+          setStatus(`Request failed with status ${response.status}.`, "error");
+          hideSummary();
+        }
+
+        outputEl.textContent = JSON.stringify(data, null, 2);
+      } catch (error) {
+        setStatus("Network or server error.", "error");
+        outputEl.textContent = "Error: " + error.message;
+        hideSummary();
+      } finally {
+        setLoading(false);
+      }
+    }
+
+    async function safeReadJson(response) {
+      try {
+        return await response.json();
+      } catch {
+        return {
+          error: "Server returned a non-JSON response.",
+          status: response.status
+        };
+      }
+    }
+
+    function showSummary(data) {
+      summaryEl.style.display = "grid";
+
+      decisionValue.textContent = data.decision ?? "—";
+
+      const foir = data.metrics?.foir;
+      foirValue.textContent =
+        typeof foir === "number" ? foir.toFixed(2) : "—";
+
+      const flags = data.metrics?.risk_flags;
+      riskFlagsValue.textContent =
+        Array.isArray(flags) && flags.length ? flags.join(", ") : "None";
+    }
+
+    function hideSummary() {
+      summaryEl.style.display = "none";
+      decisionValue.textContent = "—";
+      foirValue.textContent = "—";
+      riskFlagsValue.textContent = "—";
+    }
+
+    async function copyJson() {
+      const text = outputEl.textContent.trim();
+
+      if (!text || text === "Waiting for PDF upload..." || text === "Analyzing PDF...") {
+        setStatus("No JSON response to copy yet.", "error");
+        return;
+      }
+
+      try {
+        await navigator.clipboard.writeText(text);
+        setStatus("JSON copied to clipboard.", "success");
+      } catch {
+        setStatus("Could not copy JSON. Select and copy manually.", "error");
+      }
+    }
+
+    function clearPage() {
+      fileInput.value = "";
+      selectedFileEl.textContent = "No file selected.";
+      outputEl.textContent = "Waiting for PDF upload...";
+      hideSummary();
+      resetStatus();
+    }
+
+    function setLoading(isLoading) {
+      analyzeBtn.disabled = isLoading;
+      clearBtn.disabled = isLoading;
+      copyBtn.disabled = isLoading;
+      analyzeBtn.textContent = isLoading ? "Analyzing..." : "Analyze Application";
+    }
+
+    function setStatus(message, type = "") {
+      statusEl.textContent = message;
+      statusEl.className = type ? `status ${type}` : "status";
+    }
+
+    function resetStatus() {
+      statusEl.textContent = "";
+      statusEl.className = "status";
+    }
+
+    function isPdf(file) {
+      return file.type === "application/pdf" || file.name.toLowerCase().endsWith(".pdf");
+    }
+
+    function formatFileSize(bytes) {
+      if (bytes < 1024) {
+        return `${bytes} B`;
+      }
+
+      if (bytes < 1024 * 1024) {
+        return `${(bytes / 1024).toFixed(1)} KB`;
+      }
+
+      return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+    }
+  </script>
+</body>
+</html>

@@ -1,5 +1,7 @@
 from contextlib import asynccontextmanager
 
+from fastapi.staticfiles import StaticFiles
+
 from fastapi import FastAPI
 
 from app.db import init_db
@@ -29,6 +31,8 @@ app = FastAPI(
 )
 
 app.include_router(applications_router)
+
+app.mount("/demo", StaticFiles(directory="static", html=True), name="demo")
 
 @app.get("/health")
 def health():
