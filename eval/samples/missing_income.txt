@@ -1,0 +1,10 @@
+Loan Application
+
+Applicant Name: Priya Shah
+Age: 34
+Employment Type: self-employed
+Employer: Shah Designs
+Existing EMIs: 12000
+Requested Loan Amount: 500000
+Tenure: 36 months
+Purpose: business expansion

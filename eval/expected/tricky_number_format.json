@@ -1,0 +1,11 @@
+{
+  "name": "Rohan Iyer",
+  "age": 41,
+  "employment_type": "salaried",
+  "employer": "Infosys Ltd",
+  "monthly_income": 120000,
+  "existing_emis": 18500,
+  "requested_amount": 750000,
+  "tenure_months": 48,
+  "purpose": "vehicle purchase"
+}

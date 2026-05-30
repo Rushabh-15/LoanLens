@@ -1,0 +1,11 @@
+{
+  "name": "Aarav Mehta",
+  "age": 29,
+  "employment_type": "salaried",
+  "employer": "TCS",
+  "monthly_income": 90000,
+  "existing_emis": 5000,
+  "requested_amount": 300000,
+  "tenure_months": 24,
+  "purpose": "home renovation"
+}

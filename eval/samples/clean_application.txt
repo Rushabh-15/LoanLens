@@ -1,0 +1,11 @@
+Loan Application
+
+Applicant Name: Aarav Mehta
+Age: 29
+Employment Type: salaried
+Employer: TCS
+Monthly Income: 90000
+Existing EMIs: 5000
+Requested Loan Amount: 300000
+Tenure: 24 months
+Purpose: home renovation

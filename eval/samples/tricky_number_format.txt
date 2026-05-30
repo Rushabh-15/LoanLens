@@ -1,0 +1,11 @@
+Loan Application
+
+Applicant Name: Rohan Iyer
+Age: 41
+Employment Type: salaried
+Employer: Infosys Ltd
+Monthly Income: ₹1,20,000 per month
+Existing EMIs: ₹18,500
+Requested Loan Amount: ₹7.5 lakh
+Tenure: 48 months
+Purpose: vehicle purchase
