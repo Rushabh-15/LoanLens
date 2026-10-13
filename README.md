@@ -219,3 +219,7 @@ The API layer is stateless and can be scaled horizontally behind a load balancer
 The rules engine and decision router are pure functions and therefore scale independently without additional architectural complexity. SQLite would be replaced by PostgreSQL through a configuration change to `DATABASE_URL`, leveraging SQLAlchemy's database abstraction. Monetary calculations would migrate from floating-point arithmetic to `Decimal` for precision.
 
 Additional production improvements would include OCR support for scanned documents, idempotency keys for safe retries, structured audit logging, centralized secret management with rotation, encryption of sensitive applicant data at rest, and careful review of LLM-provider retention policies such as zero-data-retention configurations.
+
+---
+
+[![Tests](https://github.com/Rushabh-15/LoanLens/actions/workflows/tests.yml/badge.svg?branch=main&event=push)](https://github.com/Rushabh-15/LoanLens/actions/workflows/tests.yml)

@@ -1,21 +1,30 @@
 import logging
-import anthropic
+from functools import lru_cache
 
+import anthropic
 from anthropic import APIError
 from pydantic import ValidationError
-logger = logging.getLogger(__name__)
 
-from app.core.config import (
-    CLAUDE_MODEL,
-    MAX_TOKENS,
-    TEMPERATURE,
-)
-
+from app.core.config import get_settings
 from app.models.schemas import ExtractedFields
 
-# Client is created once
-# SDK automatically reads ANTHROPIC_API_KEY from environment
-client = anthropic.Anthropic()
+
+logger = logging.getLogger(__name__)
+
+
+@lru_cache(maxsize=1)
+def get_anthropic_client() -> anthropic.Anthropic:
+    """Create the client on first use and cache it."""
+    settings = get_settings()
+
+    if not settings.anthropic_api_key:
+        raise RuntimeError(
+            "ANTHROPIC_API_KEY is required for Claude extraction."
+        )
+
+    return anthropic.Anthropic(
+        api_key=settings.anthropic_api_key,
+    )
 
 
 # IMPORTANT:
@@ -129,18 +138,14 @@ Critical extraction rules:
 # -----------------------------------
 # Internal Claude call (mockable)
 # -----------------------------------
-def _call_claude(
-    raw_text: str
-) -> ExtractedFields:
-    """
-    Real Claude API call.
-
-    Separated for easy monkeypatching in tests.
-    """
+def _call_claude(raw_text: str) -> ExtractedFields:
+    """Call Claude using cached settings and a lazy client."""
+    settings = get_settings()
+    client = get_anthropic_client()
 
     response = client.messages.parse(
-        model=CLAUDE_MODEL,
-        max_tokens=MAX_TOKENS,
+        model=settings.claude_model,
+        max_tokens=settings.max_tokens,
         system=SYSTEM_PROMPT,
         messages=[
             {
@@ -157,22 +162,8 @@ def _call_claude(
 # -----------------------------------
 # Safe public boundary
 # -----------------------------------
-def extract_fields(
-    raw_text: str
-) -> ExtractedFields:
-    """
-    Safe extraction boundary.
-
-    Guarantees:
-    - never raises
-    - always returns valid ExtractedFields
-
-    Design:
-    - expected API/schema failures degrade gracefully
-    - unexpected failures also degrade safely
-    - all failures should be logged
-    """
-
+def extract_fields(raw_text: str) -> ExtractedFields:
+    """Extract fields, falling back to low confidence on errors."""
     try:
         return _call_claude(raw_text)
 

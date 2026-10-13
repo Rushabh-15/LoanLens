@@ -1,7 +1,7 @@
 from sqlalchemy import create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
-from app.core.config import DATABASE_URL
+from app.core.config import get_settings
 
 # Base class for all ORM models
 
@@ -9,7 +9,7 @@ class Base(DeclarativeBase):
     pass
 
 # Database engine
-engine = create_engine(DATABASE_URL)
+engine = create_engine(get_settings().database_url)
 
 # Session factory
 SessionLocal = sessionmaker(
