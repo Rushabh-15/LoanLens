@@ -8,7 +8,8 @@ DECLINE_FLAGS = {
 }
 
 REVIEW_FLAGS = {
-    "MISSING_CRITICAL_FIELD"
+    "MISSING_CRITICAL_FIELD",
+    "INVALID_VALUE",
 }
 
 
@@ -33,7 +34,7 @@ def route_decision(
     ):
         return (
             DecisionType.NEEDS_REVIEW,
-            "Missing critical information; routed to human review."
+            "Missing or invalid critical information; routed to human review."
         )
 
     decline_flags_found = [

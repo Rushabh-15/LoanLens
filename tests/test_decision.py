@@ -39,6 +39,16 @@ from app.services.decision import route_decision
         ),
         (
             False,
+            ["INVALID_VALUE"],
+            DecisionType.NEEDS_REVIEW
+        ),
+        (
+            False,
+            ["INVALID_VALUE", "FOIR_TOO_HIGH"],
+            DecisionType.NEEDS_REVIEW
+        ),
+        (
+            False,
             [
                 "FOIR_TOO_HIGH",
                 "INCOME_BELOW_MINIMUM"
