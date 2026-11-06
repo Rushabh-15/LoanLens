@@ -233,7 +233,15 @@ The rationale for this behavior, the model choice, and omitted sampling paramete
 
 FOIR (Fixed Obligation to Income Ratio) and EMI (Equated Monthly Installment) are widely used affordability measures in consumer lending. Together they provide a simple, explainable way to evaluate whether an applicant can reasonably service a proposed loan.
 
-The thresholds are demonstration policy assumptions. `FOIR_THRESHOLD`, `MINIMUM_MONTHLY_INCOME`, and `LOAN_INCOME_MULTIPLE` are defined in `rules_engine.py`; the default annual interest rate is currently `12.0` in `analysis.py`. They are code-level settings, not a policy-management interface or a validated lender policy.
+The thresholds are currently module-level constants in `app/services/rules_engine.py`:
+
+- `FOIR_THRESHOLD = 0.50`
+- `MINIMUM_MONTHLY_INCOME = 15000`
+- `LOAN_INCOME_MULTIPLE = 20`
+
+Changing these thresholds requires editing the source code. They are not currently loaded from environment variables or a policy object. The default annual interest rate is separately set to `12.0` in `app/services/analysis.py`.
+
+B1 is planned to move these thresholds into a policy object. Until then, they remain demonstration policy assumptions embedded in code.
 
 ---
 
