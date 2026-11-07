@@ -2,7 +2,7 @@ from decimal import Decimal
 
 import pytest
 
-from app.services.rules_engine import calculate_emi
+from app.services.rules_engine import calculate_emi, calculate_foir
 
 
 @pytest.mark.parametrize(
@@ -46,3 +46,39 @@ def test_emi_rounds_half_up_at_exact_half_paisa():
     result = calculate_emi(Decimal("100000.05"), Decimal("0"), 2)
 
     assert result == Decimal("50000.03")
+
+def test_foir_known_value_is_not_rounded():
+    result = calculate_foir(Decimal("15000"), Decimal("11122.22"), Decimal("60000"))
+
+    assert result == Decimal("0.4353703333333333333333333333")
+
+
+def test_foir_can_land_exactly_on_half():
+    result = calculate_foir(Decimal("15000"), Decimal("10000.00"), Decimal("50000"))
+
+    assert result == Decimal("0.50")
+
+
+def test_foir_with_no_existing_emis():
+    result = calculate_foir(Decimal("0"), Decimal("19928.59"), Decimal("90000"))
+
+    assert result == Decimal("0.2214287777777777777777777778")
+
+
+@pytest.mark.parametrize("monthly_income", ["0", "-1"])
+def test_foir_rejects_non_positive_income(monthly_income):
+    with pytest.raises(ValueError):
+        calculate_foir(Decimal("15000"), Decimal("11122.22"), Decimal(monthly_income))
+
+
+@pytest.mark.parametrize("argument", ["existing_emis", "new_emi", "monthly_income"])
+def test_foir_rejects_float_arguments(argument):
+    arguments = {
+        "existing_emis": Decimal("15000"),
+        "new_emi": Decimal("11122.22"),
+        "monthly_income": Decimal("60000"),
+    }
+    arguments[argument] = float(arguments[argument])
+
+    with pytest.raises(TypeError):
+        calculate_foir(**arguments)
