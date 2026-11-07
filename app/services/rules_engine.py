@@ -1,93 +1,29 @@
-FOIR_THRESHOLD = 0.50
-MINIMUM_MONTHLY_INCOME = 15000
-LOAN_INCOME_MULTIPLE = 20
+from decimal import ROUND_HALF_UP, Decimal
 
+PAISA = Decimal("0.01")
 
-def calculate_emi(
-    principal: float,
-    annual_rate: float,
-    tenure_months: int
-) -> float:
+def calculate_emi(principal: Decimal, annual_rate: Decimal, tenure_months: int) -> Decimal:
     """
-    Return monthly EMI using the standard amortization formula.
-    Handles 0% interest by returning principal / tenure_months.
-    """
+    Calculate the Equated Monthly Installment (EMI) for a loan.
 
+    :param principal: The principal loan amount as a Decimal.
+    :param annual_rate: The annual interest rate as a Decimal (percentage).
+    :param tenure_months: The loan tenure in months as an integer.
+    :return: The EMI amount as a Decimal Rounded half-up to the paisa.
+    """
+    if not isinstance(principal, Decimal):
+        raise TypeError("Principal must be a Decimal.")
+    if not isinstance(annual_rate, Decimal):
+        raise TypeError("Annual rate must be a Decimal.")
     if tenure_months <= 0:
-        raise ValueError("Tenure months must be greater than zero")
+        raise ValueError("Tenure months must be a positive integer.")
 
-    if annual_rate == 0:
-        return principal / tenure_months
+    monthly_rate = annual_rate / Decimal("12") / Decimal("100")
+    growth = (1 + monthly_rate) ** tenure_months
+    
+    if monthly_rate == 0:
+        emi = principal / Decimal(tenure_months)
+    else:
+        emi = principal * monthly_rate * growth / (growth - 1)
 
-    monthly_rate = annual_rate / 12 / 100
-
-    growth_factor = (1 + monthly_rate) ** tenure_months
-
-    emi = (
-        principal
-        * monthly_rate
-        * growth_factor
-        / (growth_factor - 1)
-    )
-
-    return emi
-
-
-def calculate_foir(
-    existing_emis: float,
-    new_emi: float,
-    monthly_income: float
-) -> float:
-    """
-    Return FOIR as total monthly obligations divided by income.
-    Raises ValueError when monthly_income is zero or negative.
-    """
-
-    if monthly_income <= 0:
-        raise ValueError("Monthly income must be greater than zero")
-
-    return (existing_emis + new_emi) / monthly_income
-
-
-def evaluate_risk_flags(
-    monthly_income: float | None,
-    existing_emis: float | None,
-    requested_loan_amount: float | None,
-    tenure_months: int | None,
-    foir: float | None
-) -> list[str]:
-    """
-    Return a list of loan application risk flags.
-    Returns an empty list for clean applications.
-    """
-
-    flags = []
-
-    required_fields = [
-        monthly_income,
-        existing_emis,
-        requested_loan_amount,
-        tenure_months,
-        foir
-    ]
-
-    if any(value is None for value in required_fields):
-        flags.append("MISSING_CRITICAL_FIELD")
-        return flags
-
-    if monthly_income <= 0 or tenure_months <= 0:
-        flags.append("MISSING_CRITICAL_FIELD")
-        return flags
-
-    if foir > FOIR_THRESHOLD:
-        flags.append("FOIR_TOO_HIGH")
-
-    if monthly_income < MINIMUM_MONTHLY_INCOME:
-        flags.append("INCOME_BELOW_MINIMUM")
-
-    if requested_loan_amount > (
-        monthly_income * LOAN_INCOME_MULTIPLE
-    ):
-        flags.append("AMOUNT_DISPROPORTIONATE")
-
-    return flags
+    return emi.quantize(PAISA, rounding=ROUND_HALF_UP)

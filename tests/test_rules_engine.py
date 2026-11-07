@@ -1,140 +1,48 @@
+from decimal import Decimal
+
 import pytest
 
-from app.services.rules_engine import (
-    calculate_emi,
-    calculate_foir,
-    evaluate_risk_flags
+from app.services.rules_engine import calculate_emi
+
+
+@pytest.mark.parametrize(
+    "principal, annual_rate, tenure_months, expected",
+    [
+        pytest.param("600000", "12", 36, "19928.59", id="known_value_36_months"),
+        pytest.param("600000", "12", 1, "606000.00", id="one_month"),
+        pytest.param("120000", "0", 12, "10000.00", id="zero_rate_even"),
+        pytest.param("100000", "0", 3, "33333.33", id="zero_rate_uneven"),
+        pytest.param("500000", "12", 60, "11122.22", id="old_value_60_months"),
+        pytest.param("200000", "12", 24, "9414.69", id="old_value_24_months"),
+    ],
 )
+def test_emi_known_values(principal, annual_rate, tenure_months, expected):
+    result = calculate_emi(Decimal(principal), Decimal(annual_rate), tenure_months)
+
+    assert result == Decimal(expected)
 
 
-def test_emi_basic():
-    result = calculate_emi(
-        principal=500000,
-        annual_rate=12,
-        tenure_months=60
-    )
+@pytest.mark.parametrize("annual_rate", ["12", "0"], ids=["with_interest", "zero_rate"])
+def test_emi_is_a_decimal_rounded_to_paisa(annual_rate):
+    result = calculate_emi(Decimal("120000"), Decimal(annual_rate), 12)
 
-    assert result == pytest.approx(11122.22, abs=0.01)
+    assert isinstance(result, Decimal)
+    assert result.as_tuple().exponent == -2
 
 
-def test_emi_zero_interest():
-    result = calculate_emi(
-        principal=120000,
-        annual_rate=0,
-        tenure_months=12
-    )
-
-    assert result == pytest.approx(10000.00, abs=0.01)
-
-
-def test_emi_another_term():
-    result = calculate_emi(
-        principal=200000,
-        annual_rate=12,
-        tenure_months=24
-    )
-
-    assert result == pytest.approx(9414.69, abs=0.01)
-
-
-def test_foir_basic():
-    result = calculate_foir(
-        existing_emis=15000,
-        new_emi=11122.22,
-        monthly_income=60000
-    )
-
-    assert result == pytest.approx(0.4354, abs=0.0001)
-
-
-def test_foir_zero_income():
+@pytest.mark.parametrize("tenure_months", [0, -1])
+def test_emi_rejects_non_positive_tenure(tenure_months):
     with pytest.raises(ValueError):
-        calculate_foir(
-            existing_emis=15000,
-            new_emi=11122.22,
-            monthly_income=0
-        )
+        calculate_emi(Decimal("600000"), Decimal("12"), tenure_months)
 
 
-def test_flag_high_foir():
-    flags = evaluate_risk_flags(
-        monthly_income=60000,
-        existing_emis=25000,
-        requested_loan_amount=500000,
-        tenure_months=60,
-        foir=0.60
-    )
+@pytest.mark.parametrize("annual_rate", ["12", "0"], ids=["with_interest", "zero_rate"])
+def test_emi_rejects_float_principal(annual_rate):
+    with pytest.raises(TypeError):
+        calculate_emi(600000.0, Decimal(annual_rate), 36)
 
-    assert "FOIR_TOO_HIGH" in flags
+def test_emi_rounds_half_up_at_exact_half_paisa():
+    # 1,00,000.05 / 2 = 50,000.025: half-up gives .03, half-even gives .02
+    result = calculate_emi(Decimal("100000.05"), Decimal("0"), 2)
 
-
-def test_flag_clean_application():
-    flags = evaluate_risk_flags(
-        monthly_income=120000,
-        existing_emis=5000,
-        requested_loan_amount=200000,
-        tenure_months=60,
-        foir=0.12
-    )
-
-    assert flags == []
-
-
-def test_flag_income_below_minimum():
-    flags = evaluate_risk_flags(
-        monthly_income=10000,
-        existing_emis=2000,
-        requested_loan_amount=100000,
-        tenure_months=24,
-        foir=0.30
-    )
-
-    assert "INCOME_BELOW_MINIMUM" in flags
-
-
-def test_flag_amount_disproportionate():
-    flags = evaluate_risk_flags(
-        monthly_income=20000,
-        existing_emis=1000,
-        requested_loan_amount=1000000,
-        tenure_months=60,
-        foir=0.25
-    )
-
-    assert "AMOUNT_DISPROPORTIONATE" in flags
-
-
-def test_flag_missing_critical_field():
-    flags = evaluate_risk_flags(
-        monthly_income=None,
-        existing_emis=1000,
-        requested_loan_amount=200000,
-        tenure_months=60,
-        foir=0.20
-    )
-
-    assert "MISSING_CRITICAL_FIELD" in flags
-
-
-def test_flag_zero_income():
-    flags = evaluate_risk_flags(
-        monthly_income=0,
-        existing_emis=1000,
-        requested_loan_amount=200000,
-        tenure_months=60,
-        foir=0.20
-    )
-
-    assert "MISSING_CRITICAL_FIELD" in flags
-
-
-def test_flag_zero_tenure():
-    flags = evaluate_risk_flags(
-        monthly_income=50000,
-        existing_emis=1000,
-        requested_loan_amount=200000,
-        tenure_months=0,
-        foir=0.20
-    )
-
-    assert "MISSING_CRITICAL_FIELD" in flags
+    assert result == Decimal("50000.03")
