@@ -1,3 +1,4 @@
+import dataclasses
 from decimal import Decimal
 
 import pytest
@@ -82,3 +83,83 @@ def test_foir_rejects_float_arguments(argument):
 
     with pytest.raises(TypeError):
         calculate_foir(**arguments)
+
+from app.services.rules_engine import (
+    DEFAULT_POLICY,
+    LendingPolicy,
+    calculate_emi,
+    calculate_foir,
+    evaluate_risk_flags,
+)
+
+
+def flags_for(foir="0.30", monthly_income="60000", requested_amount="600000",
+              policy=DEFAULT_POLICY):
+    return evaluate_risk_flags(
+        foir=Decimal(foir),
+        monthly_income=Decimal(monthly_income),
+        requested_amount=Decimal(requested_amount),
+        policy=policy,
+    )
+
+
+def test_default_policy_values():
+    assert DEFAULT_POLICY.max_foir == Decimal("0.50")
+    assert DEFAULT_POLICY.min_monthly_income == Decimal("15000")
+    assert DEFAULT_POLICY.max_loan_to_income_multiple == Decimal("20")
+    assert DEFAULT_POLICY.default_annual_rate == Decimal("12")
+
+
+def test_policy_cannot_be_changed_after_creation():
+    with pytest.raises(dataclasses.FrozenInstanceError):
+        DEFAULT_POLICY.max_foir = Decimal("0.60")
+
+
+def test_clean_application_has_no_flags():
+    assert flags_for() == []
+
+
+@pytest.mark.parametrize(
+    "overrides, expected",
+    [
+        pytest.param({"foir": "0.50"}, [], id="foir_at_limit"),
+        pytest.param({"foir": "0.5001"}, ["FOIR_TOO_HIGH"], id="foir_over_limit"),
+        pytest.param({"monthly_income": "15000", "requested_amount": "100000"}, [],
+                     id="income_at_minimum"),
+        pytest.param({"monthly_income": "14999.99", "requested_amount": "100000"},
+                     ["INCOME_BELOW_MINIMUM"], id="income_below_minimum"),
+        pytest.param({"requested_amount": "1200000"}, [], id="amount_at_20x"),
+        pytest.param({"requested_amount": "1200000.01"}, ["AMOUNT_DISPROPORTIONATE"],
+                     id="amount_over_20x"),
+    ],
+)
+def test_thresholds_at_exact_boundaries(overrides, expected):
+    assert flags_for(**overrides) == expected
+
+
+def test_all_three_flags_in_order():
+    assert flags_for(foir="0.60", monthly_income="10000", requested_amount="500000") == [
+        "FOIR_TOO_HIGH",
+        "INCOME_BELOW_MINIMUM",
+        "AMOUNT_DISPROPORTIONATE",
+    ]
+
+
+def test_custom_policy_changes_the_outcome():
+    strict = LendingPolicy(max_foir=Decimal("0.40"))
+
+    assert flags_for(foir="0.45") == []
+    assert flags_for(foir="0.45", policy=strict) == ["FOIR_TOO_HIGH"]
+
+
+@pytest.mark.parametrize("argument", ["foir", "monthly_income", "requested_amount"])
+def test_risk_flags_reject_float_arguments(argument):
+    arguments = {
+        "foir": Decimal("0.30"),
+        "monthly_income": Decimal("60000"),
+        "requested_amount": Decimal("600000"),
+    }
+    arguments[argument] = float(arguments[argument])
+
+    with pytest.raises(TypeError):
+        evaluate_risk_flags(**arguments, policy=DEFAULT_POLICY)
