@@ -3,7 +3,13 @@ from decimal import Decimal
 
 import pytest
 
-from app.services.rules_engine import calculate_emi, calculate_foir
+from app.services.rules_engine import (
+    DEFAULT_POLICY,
+    LendingPolicy,
+    calculate_emi,
+    calculate_foir,
+    evaluate_risk_flags,
+)
 
 
 @pytest.mark.parametrize(
@@ -84,13 +90,6 @@ def test_foir_rejects_float_arguments(argument):
     with pytest.raises(TypeError):
         calculate_foir(**arguments)
 
-from app.services.rules_engine import (
-    DEFAULT_POLICY,
-    LendingPolicy,
-    calculate_emi,
-    calculate_foir,
-    evaluate_risk_flags,
-)
 
 
 def flags_for(foir="0.30", monthly_income="60000", requested_amount="600000",

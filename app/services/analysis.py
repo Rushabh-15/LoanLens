@@ -1,8 +1,11 @@
 from dataclasses import dataclass
+from decimal import Decimal
 
 from app.models.schemas import DecisionType
 from app.services.decision import route_decision
 from app.services.rules_engine import (
+    DEFAULT_POLICY,
+    LendingPolicy,
     calculate_emi,
     calculate_foir,
     evaluate_risk_flags,
@@ -11,8 +14,8 @@ from app.services.rules_engine import (
 
 @dataclass
 class AnalysisResult:
-    emi: float
-    foir: float
+    emi: Decimal
+    foir: Decimal
     risk_flags: list[str]
     decision: DecisionType
     reason: str
@@ -76,10 +79,16 @@ def validate_inputs(applicant_data: dict) -> tuple[list[str], list[str]]:
 
     return risk_flags, validation_messages
 
+def to_decimal(value: int | float | Decimal) -> Decimal:
+    """Convert an input number to Decimal through str, so 0.1 stays exactly 0.1."""
+    return Decimal(str(value))
+
+
 
 def analyze_applicant(
     applicant_data: dict,
     has_low_confidence: bool = False,
+    policy: LendingPolicy = DEFAULT_POLICY,
 ) -> AnalysisResult:
     """Validate inputs, calculate metrics, and route the decision."""
 
@@ -102,27 +111,23 @@ def analyze_applicant(
 
         # Calculations were skipped; retain the existing placeholders.
         return AnalysisResult(
-            emi=0.0,
-            foir=0.0,
+            emi=Decimal("0"),
+            foir=Decimal("0"),
             risk_flags=risk_flags,
             decision=decision,
             reason=reason,
         )
 
     # Valid inputs continue through the normal calculation path.
-    monthly_income = applicant_data["monthly_income"]
-    existing_emis = applicant_data["existing_emis"]
-    requested_amount = applicant_data["requested_amount"]
+    # Convert at the boundary: the rules engine accepts only Decimal.
+    monthly_income = to_decimal(applicant_data["monthly_income"])
+    existing_emis = to_decimal(applicant_data["existing_emis"])
+    requested_amount = to_decimal(applicant_data["requested_amount"])
     tenure_months = applicant_data["tenure_months"]
-
-    annual_interest_rate = applicant_data.get(
-        "annual_interest_rate",
-        12.0,
-    )
 
     emi = calculate_emi(
         principal=requested_amount,
-        annual_rate=annual_interest_rate,
+        annual_rate=policy.default_annual_rate,
         tenure_months=tenure_months,
     )
 
@@ -133,11 +138,10 @@ def analyze_applicant(
     )
 
     risk_flags = evaluate_risk_flags(
-        monthly_income=monthly_income,
-        existing_emis=existing_emis,
-        requested_loan_amount=requested_amount,
-        tenure_months=tenure_months,
         foir=foir,
+        monthly_income=monthly_income,
+        requested_amount=requested_amount,
+        policy=policy,
     )
 
     decision, reason = route_decision(

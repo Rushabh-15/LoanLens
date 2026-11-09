@@ -52,8 +52,8 @@ def analyze_application_fields(
             "applicant_data": applicant.model_dump(),
             "confidence_note": "N/A - human input",
         },
-        emi=result.emi,
-        foir=result.foir,
+        emi=float(result.emi),
+        foir=float(result.foir),
         risk_flags=result.risk_flags,
         decision=result.decision.value,
         reason=result.reason,
@@ -73,8 +73,8 @@ def analyze_application_fields(
         reason=result.reason,
         applicant=applicant,
         metrics=RiskMetrics(
-            estimated_emi=result.emi,
-            foir=result.foir,
+            estimated_emi=float(result.emi),
+            foir=float(result.foir),
             risk_flags=result.risk_flags,
         ),
     )
