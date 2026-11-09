@@ -233,13 +233,16 @@ The rationale for this behavior, the model choice, and omitted sampling paramete
 
 FOIR (Fixed Obligation to Income Ratio) and EMI (Equated Monthly Installment) are widely used affordability measures in consumer lending. Together they provide a simple, explainable way to evaluate whether an applicant can reasonably service a proposed loan.
 
-The thresholds are currently module-level constants in `app/services/rules_engine.py`:
+The limits and the default interest rate live in a frozen `LendingPolicy` dataclass in `app/services/rules_engine.py`:
 
-- `FOIR_THRESHOLD = 0.50`
-- `MINIMUM_MONTHLY_INCOME = 15000`
-- `LOAN_INCOME_MULTIPLE = 20`
+| Field | Default | Meaning |
+| --- | --- | --- |
+| `max_foir` | 0.50 | Highest FOIR that still passes |
+| `min_monthly_income` | ₹15,000 | Lowest monthly income that still passes |
+| `max_loan_to_income_multiple` | 20 | Largest request, as a multiple of monthly income |
+| `default_annual_rate` | 12% | Rate used to estimate the EMI |
 
-Changing these thresholds requires editing the source code. They are not currently loaded from environment variables or a policy object. The default annual interest rate is separately set to `12.0` in `app/services/analysis.py`.
+All limits are inclusive: a value exactly on a limit passes. `analyze_applicant()` uses `DEFAULT_POLICY` unless a caller passes another policy, so limits can change without editing the rules. The values are demonstration assumptions, not a validated lender policy, and policies are still defined in code rather than loaded from configuration. See `docs/DECISIONS.md` for the reasoning.
 
 B1 is planned to move these thresholds into a policy object. Until then, they remain demonstration policy assumptions embedded in code.
 
@@ -263,7 +266,7 @@ The final failure mode is prompt injection within uploaded documents. The extrac
 
 Production work would first address the blocking execution path, resource limits, and evaluation gaps above. A worker queue could move extraction out of the request handler, with a job identifier and a way to retrieve processing status and results. That architecture is not implemented in the current version.
 
-The rules engine and decision router are pure functions, but end-to-end scaling also depends on database concurrency, model rate limits, and worker capacity. SQLite is the local default; using shared PostgreSQL would require configuration and integration testing. Monetary calculations currently use floating-point arithmetic; a move to `Decimal` would need explicit rounding rules and tests.
+The rules engine and decision router are pure functions, but end-to-end scaling also depends on database concurrency, model rate limits, and worker capacity. SQLite is the local default; using shared PostgreSQL would require configuration and integration testing. The rules engine uses `Decimal`, rounding EMI half-up to the paisa; the API response and database still carry floats, converted after rounding (see `docs/DECISIONS.md` §4).
 
 Additional production improvements would include OCR support for scanned documents, idempotency keys for safe retries, structured audit logging, centralized secret management with rotation, encryption of sensitive applicant data at rest, and careful review of LLM-provider retention policies such as zero-data-retention configurations.
 
