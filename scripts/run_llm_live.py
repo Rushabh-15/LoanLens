@@ -1,7 +1,7 @@
 import sys
 from pathlib import Path
 
-from app.services.confidence import has_low_confidence
+from app.services.confidence import low_confidence_fields
 
 from app.services.llm_extractor import extract_fields
 
@@ -64,10 +64,10 @@ def main():
         # -----------------------------
         print("\n[STEP 3] Confidence analysis...\n")
 
-        low_confidence = has_low_confidence(extracted)
+        low_fields = low_confidence_fields(extracted)
 
         print(
-            f"Has low-confidence fields: {low_confidence}"
+            f"Low-confidence critical fields: {low_fields or 'none'}"
         )
 
         print("\nPer-field confidence:\n")

@@ -25,7 +25,7 @@ from app.services.pdf_extractor import (
     NoExtractableTextError,
 )
 from app.services.llm_extractor import extract_fields
-from app.services.confidence import has_low_confidence
+from app.services.confidence import low_confidence_fields
 
 router = APIRouter()
 
@@ -111,7 +111,8 @@ async def analyze_application_upload(
         )
 
     extracted = extract_fields(text)
-    low_conf = has_low_confidence(extracted)
+    low_fields = low_confidence_fields(extracted)
+    low_conf = bool(low_fields)
 
     applicant_data = {
         "name": extracted.name.value,
@@ -127,7 +128,7 @@ async def analyze_application_upload(
 
     result = analyze_applicant(
         applicant_data,
-        has_low_confidence=low_conf,
+        low_confidence_fields=low_fields,
     )
 
     status = (
