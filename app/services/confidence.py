@@ -1,24 +1,20 @@
-from app.models.schemas import (
-    ExtractedFields,
-    Confidence,
-)
+from app.models.schemas import Confidence, ExtractedFields
+from app.services.decision import CRITICAL_FIELDS
 
 
-def has_low_confidence(
-    fields: ExtractedFields
-) -> bool:
+def low_confidence_fields(fields: ExtractedFields) -> list[str]:
     """
-    Returns True if ANY field has low confidence.
+    Return the critical fields the model labelled low confidence.
 
-    Design choice:
-    - Only LOW confidence triggers review
-    - MEDIUM confidence is treated as acceptable
+    Only CRITICAL_FIELDS count: a low score on name, employer, purpose or
+    employment type does not affect the decision, so it does not send the
+    case to review. MEDIUM is accepted until the C2 accuracy-by-confidence
+    table shows otherwise.
 
-    This can be tightened later if
-    false-acceptance cost increases.
+    The result follows CRITICAL_FIELDS order, so reason codes are stable.
     """
-
-    return any(
-        getattr(fields, field_name).confidence == Confidence.low
-        for field_name in ExtractedFields.model_fields
-    )
+    return [
+        field_name
+        for field_name in CRITICAL_FIELDS
+        if getattr(fields, field_name).confidence == Confidence.low
+    ]
