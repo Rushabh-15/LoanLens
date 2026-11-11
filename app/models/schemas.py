@@ -29,6 +29,15 @@ class Confidence(str, Enum):
     medium = "medium"
     low = "low"
 
+class ExtractionStatus(str, Enum):
+    """Outcome of the model call. Anything other than OK sends the case to review."""
+
+    OK = "ok"
+    API_ERROR = "api_error"
+    TIMEOUT = "timeout"
+    REFUSED = "refused"
+    TRUNCATED = "truncated"
+    INVALID_OUTPUT = "invalid_output"
 
 # -------------------------
 # Strict Human Input Schema
