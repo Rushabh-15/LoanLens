@@ -18,15 +18,22 @@ The PDF analysis path, after upload validation:
 
 ```mermaid
 flowchart TD
-    A["PDF text and Claude extraction"] --> B{"Numeric inputs valid?"}
+    A["PDF text and Claude extraction"] --> B{"Extraction status ok?"}
     B -->|No| R["Needs review"]
-    B -->|Yes| C["EMI, FOIR, and risk flags"]
-    C --> D{"Any low-confidence field?"}
-    D -->|Yes| R
-    D -->|No| E["Eligible or decline under rules"]
-    R --> F["Persist result and return JSON"]
-    E --> F
+    B -->|Yes| C{"Critical values present and valid?"}
+    C -->|No| R
+    C -->|Yes| D["EMI, FOIR, and decline flags"]
+    D --> E{"Critical field low confidence?"}
+    E -->|Yes| R
+    E -->|No| G{"Any decline flag?"}
+    G -->|Yes| X["Decline"]
+    G -->|No| Y["Eligible"]
+    R --> F["Persist result, reason and reason codes; return JSON"]
+    X --> F
+    Y --> F
 ```
+
+Until B3 the upload route always passes an `ok` extraction status; the router and its tests already handle the failure branch.
 
 ### Layer Responsibilities
 
@@ -136,7 +143,7 @@ Retrieve a previously stored loan application and decision by ID.
 
 ### GET /api/v1/review-queue
 
-List applications that require manual review due to low-confidence extraction or workflow routing.
+List applications whose decision is `needs_review`. Each item includes `reason`, written for a person, and `reason_codes`, such as `LOW_CONFIDENCE:monthly_income`, written for filtering. The endpoint does not filter by code yet; see Known gaps.
 
 ### GET /health
 
@@ -172,6 +179,10 @@ LLM-dependent tests mock the Claude call, so the suite does not need an API key 
 
 Regression tests cover missing and out-of-range extracted numeric values, field-specific review reasons, and valid boundary values such as zero existing EMIs. They check that validation failures bypass EMI and FOIR calculations. The JSON route rejects schema-invalid input with HTTP 422; the PDF route sends the covered missing or invalid extracted values to human review.
 
+`tests/test_decision.py` holds the decision precedence as a 16-row truth table: every combination of extraction failure, missing or invalid value, low critical-field confidence, and decline flag. A guard test fails if a combination is missing or duplicated. Each row asserts both the decision and the exact reason codes.
+
+After changing `app/models/db_models.py`, run `python -m scripts.check_schema`. It compares the local database with the models and exits with code 1 if a column is missing, because `create_all()` does not alter existing tables.
+
 Run the test suite with:
 
 ```bash
@@ -194,7 +205,9 @@ Extraction quality is evaluated separately by `eval/run_eval.py`, which calls Cl
 
 * **Blocking model call:** The async upload route calls the synchronous Anthropic client directly. The network wait blocks that worker's event loop and can delay other requests. PDF parsing also runs synchronously in the route. Nonblocking execution and concurrency checks remain planned.
 * **No application-level upload size limit:** The route reads the entire upload with `await file.read()` before processing. Content-type and PDF-header checks do not limit file size or processing work. Large uploads can consume excessive memory and processing time; bounded reads and processing limits remain planned.
-* **Review policy is broader than the earlier README described:** `has_low_confidence()` checks every extracted field, including `name`, `employer`, and `purpose`, rather than only critical financial fields. Any `low` confidence triggers review; `medium` alone does not. This can send otherwise usable applications to review. This README now describes the implemented behavior; defining and testing the intended critical-field policy remains planned.
+* **Extraction failures look like missing values:** `extract_fields()` still turns an API error into all-null, low-confidence fields, so an outage is reported as five `MISSING_VALUE` codes rather than `EXTRACTION_FAILED:<status>`. The router already supports the failure status; B3 will make the extraction boundary report it.
+* **Review queue is not filterable or paginated:** reason codes are stored as a JSON list, but `GET /api/v1/review-queue` returns every review case without filtering by code. Pagination and filtering are planned for B4.
+* **No database migrations:** `create_all()` creates missing tables but never changes existing ones. After a model change, the local development database must be recreated; `scripts/check_schema.py` detects the mismatch.
 * **Only three evaluation samples:** `eval/samples/` contains a clean application, a missing-income case, and a tricky-number-format case. These are text inputs, so the harness does not measure PDF parsing quality. This set is too small to establish real-world extraction accuracy or robustness. A broader labelled evaluation set and measured quality, latency, and cost results remain planned.
 
 Phases B–D are planned to address these gaps. They are not implemented by this README update.
@@ -207,7 +220,7 @@ Phases B–D are planned to address these gaps. They are not implemented by this
 
 LoanLens separates document understanding from rule execution. The LLM extracts structured fields, while Python validates inputs and performs affordability calculations and decision routing. The rules engine and decision router can be tested without FastAPI, a database, or the LLM SDK. This makes rule behavior inspectable and reproducible for a given input, but an incorrect extraction can still change the outcome.
 
-The architectural seam is explicit: `extract_fields()` produces structured applicant data, `analyze_applicant()` computes risk metrics, and `route_decision()` determines the final outcome.
+The architectural seam is explicit: `extract_fields()` produces structured applicant data, `analyze_applicant()` validates the inputs and computes risk metrics, and `route_decision()` turns those facts into the decision, a reason, and reason codes. Only the router writes reason text.
 
 ---
 
@@ -215,17 +228,27 @@ The architectural seam is explicit: `extract_fields()` produces structured appli
 
 Structured Outputs guarantee that the response matches a valid schema, but they do not guarantee that the extracted values are correct. For example, a model may return a valid monthly income field while still misreading the document. To address this, every extracted field carries its own confidence assessment using typed field wrappers and a confidence enum.
 
-The confidence values are treated as routing signals rather than calibrated probabilities. The system uses `has_low_confidence()` to detect uncertain extractions and route them for human review. This approach acknowledges uncertainty explicitly instead of assuming that schema-valid output is always trustworthy.
+The confidence values are treated as routing signals rather than calibrated probabilities. `low_confidence_fields()` returns the critical fields the model labelled `low`, and the router sends those cases to human review. Confidence on fields the rules never read, such as `name`, `employer`, `employment_type`, and `purpose`, does not affect the decision. This approach acknowledges uncertainty explicitly instead of assuming that schema-valid output is always trustworthy.
 
 ---
 
 ### Why route applications to human review instead of auto-deciding everything?
 
-The current confidence policy checks every extracted field. Any field with `low` confidence produces a `NEEDS_REVIEW` outcome, even when the available numeric data would otherwise produce eligibility or decline. A `medium` confidence label alone does not trigger review.
+`route_decision()` in `app/services/decision.py` applies these conditions in order; the first that holds decides:
 
-Missing or invalid critical numeric values also trigger review and skip calculations. These fields are `age`, `monthly_income`, `existing_emis`, `requested_amount`, and `tenure_months`. Review reasons name the failing fields. Invalid model output may be an extraction mistake, so it is flagged for a person to check rather than used as the sole basis for decline. The review queue exposes these applications for inspection.
+| # | Condition | Decision | Reason codes | EMI and FOIR calculated |
+| --- | --- | --- | --- | --- |
+| 1 | Extraction status is not `ok` | `needs_review` | `EXTRACTION_FAILED:<status>` | No |
+| 2 | A critical value is missing or invalid | `needs_review` | `MISSING_VALUE:<field>`, `INVALID_VALUE:<field>` | No |
+| 3 | A critical field has `low` confidence | `needs_review` | `LOW_CONFIDENCE:<field>` | Yes |
+| 4 | Any decline flag | `decline` | `FOIR_TOO_HIGH`, `INCOME_BELOW_MINIMUM`, `AMOUNT_DISPROPORTIONATE` | Yes |
+| 5 | Otherwise | `eligible` | none | Yes |
 
-The rationale for this behavior, the model choice, and omitted sampling parameters is recorded in [docs/DECISIONS.md](docs/DECISIONS.md).
+The critical fields are `age`, `monthly_income`, `existing_emis`, `requested_amount`, and `tenure_months`, defined once as `CRITICAL_FIELDS` in `app/services/decision.py`. They are the fields validation and the rules read; age matters because of the under-18 check. A `medium` confidence label is accepted for now.
+
+A review lists every review cause from rows 2 and 3, and each field appears once: a missing or invalid field is not also reported as low confidence. Decline flags become reason codes only when the decision is decline; when a review condition outranks them, they remain visible in `risk_flags`. Invalid model output may be an extraction mistake, so it is flagged for a person to check rather than used as the sole basis for decline.
+
+The rationale for this behavior is recorded in [docs/DECISIONS.md](docs/DECISIONS.md): §3 for invalid values, §8 for the precedence and reason codes, and §9 for the critical fields.
 
 ---
 
@@ -244,15 +267,13 @@ The limits and the default interest rate live in a frozen `LendingPolicy` datacl
 
 All limits are inclusive: a value exactly on a limit passes. `analyze_applicant()` uses `DEFAULT_POLICY` unless a caller passes another policy, so limits can change without editing the rules. The values are demonstration assumptions, not a validated lender policy, and policies are still defined in code rather than loaded from configuration. See `docs/DECISIONS.md` for the reasoning.
 
-B1 is planned to move these thresholds into a policy object. Until then, they remain demonstration policy assumptions embedded in code.
-
 ---
 
 ### What are the primary failure modes and how does the system handle them?
 
-The first failure mode is LLM unavailability. If the extraction API fails, the extraction layer acts as a fault boundary. Rather than raising an exception that causes a server error, the system returns a low-confidence extraction result and logs the failure. The application is then routed to human review. This converts an infrastructure failure into a recoverable workflow outcome.
+The first failure mode is LLM unavailability. If the extraction API fails, the extraction layer acts as a fault boundary. Rather than raising an exception that causes a server error, the system returns all-null, low-confidence fields and logs the failure. Validation reports the empty critical fields as `MISSING_VALUE` codes, so the application is routed to human review. This converts an infrastructure failure into a recoverable workflow outcome, but the codes do not yet distinguish an outage from a document with missing values; B3 will report it as `EXTRACTION_FAILED:<status>`.
 
-The second failure mode is incorrect or uncertain extraction. Low confidence with valid numeric values still allows EMI and FOIR calculations, while routing the case for review. Missing critical numeric values produce `MISSING_CRITICAL_FIELD`; values outside the implemented bounds produce `INVALID_VALUE`. Both skip calculations and produce field-specific review reasons. The current response uses `0.0` metric placeholders when calculations are skipped; these are not calculated affordability results.
+The second failure mode is incorrect or uncertain extraction. Low confidence on a critical field with valid numeric values still allows EMI and FOIR calculations, while routing the case for review with `LOW_CONFIDENCE:<field>`. Missing critical values produce `MISSING_VALUE:<field>` and the `MISSING_CRITICAL_FIELD` risk flag; values outside the implemented bounds produce `INVALID_VALUE:<field>` and the `INVALID_VALUE` risk flag. Both skip calculations. The current response uses `0.0` metric placeholders when calculations are skipped; these are not calculated affordability results.
 
 The third failure mode is document quality. Scanned or image-only PDFs that contain no extractable text trigger a `NoExtractableTextError` and return a 422 response. A production implementation would extend this path with OCR processing.
 
