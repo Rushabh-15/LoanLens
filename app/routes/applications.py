@@ -57,6 +57,7 @@ def analyze_application_fields(
         risk_flags=result.risk_flags,
         decision=result.decision.value,
         reason=result.reason,
+        reason_codes=result.reason_codes,
         status=status.value,
     )
 
@@ -71,6 +72,7 @@ def analyze_application_fields(
     return DecisionResponse(
         decision=result.decision,
         reason=result.reason,
+        reason_codes=result.reason_codes,
         applicant=applicant,
         metrics=RiskMetrics(
             estimated_emi=float(result.emi),
@@ -143,11 +145,12 @@ async def analyze_application_upload(
             "filename": file.filename,
             "fields": extracted.model_dump(),
         },
-        emi=result.emi,
-        foir=result.foir,
+        emi=float(result.emi),
+        foir=float(result.foir),
         risk_flags=result.risk_flags,
         decision=result.decision.value,
         reason=result.reason,
+        reason_codes=result.reason_codes,
         status=status.value,
     )
 
@@ -163,11 +166,12 @@ async def analyze_application_upload(
         application_id=db_row.id,
         decision=result.decision,
         reason=result.reason,
+        reason_codes=result.reason_codes,
         extracted_fields=extracted,
         low_confidence=low_conf,
         metrics=RiskMetrics(
-            estimated_emi=result.emi,
-            foir=result.foir,
+            estimated_emi=float(result.emi),
+            foir=float(result.foir),
             risk_flags=result.risk_flags,
         ),
     )

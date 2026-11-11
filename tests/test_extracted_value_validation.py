@@ -293,7 +293,9 @@ def test_upload_invalid_extracted_values_need_review(
     assert body["metrics"]["risk_flags"] == expected_flags
     assert body["reason"] == expected_reason
 
+    assert body["reason_codes"] == expected_codes
+
     assert record_response.status_code == 200
-    assert record_response.json()["reason"] == expected_reason
-    # Step 4 adds reason_codes to the API response and the database;
-    # add `body["reason_codes"] == expected_codes` here then.
+    record = record_response.json()
+    assert record["reason"] == expected_reason
+    assert record["reason_codes"] == expected_codes

@@ -53,6 +53,14 @@ class Application(Base):
         String
     )
 
+    # Machine-readable causes, e.g. ["LOW_CONFIDENCE:monthly_income"].
+    # default=list: a row created without codes stores [] instead of failing
+    # the NOT NULL constraint. A callable, so each row gets its own list.
+    reason_codes: Mapped[list[str]] = mapped_column(
+        JSON,
+        default=list,
+    )
+
     # -------------------------
     # Review Workflow
     # -------------------------
