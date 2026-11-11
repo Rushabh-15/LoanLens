@@ -152,3 +152,128 @@ check and 7 on the new `evaluate_risk_flags` signature.
 | Limit operators | `>`, `<`, `>`, untested | Unchanged; tested at each boundary and documented |
 | Review-path placeholders | `0.0` | `Decimal("0")`; the API still returns `0.0` |
 | API and database | float | Still float, converted in the routes |
+
+## 8. Decision precedence and reason codes
+
+**Date:** 2026-11-11 | **Status:** Accepted
+
+`route_decision()` applies five conditions in order; the first that holds
+decides:
+
+1. Extraction status is not `ok`: needs review.
+2. A critical value is missing or invalid: needs review.
+3. A critical field has `low` confidence: needs review.
+4. Any decline flag: decline.
+5. Otherwise: eligible.
+
+**Why review outranks decline:** a decline based on a misread value turns an
+extraction error into an adverse decision for the applicant. As in §3, a person
+confirms the data before anyone is turned down. The cost is more manual
+review.
+
+**Why a failed extraction comes first:** when the model call fails, the
+extracted fields carry no information. Validating them would report five
+invented "missing" values, so row 1 skips validation and calculation, and its
+code is the only code.
+
+**Why low confidence still calculates:** a low-confidence value is present and
+valid, only uncertain. The reviewer sees the EMI, the FOIR and any decline
+flags the rules would have raised. Missing or invalid values skip calculation
+because they would produce errors or meaningless numbers.
+
+**Reason codes** are returned with the reason text, stored in the
+`reason_codes` JSON column and listed in the review queue:
+
+| Code | Meaning |
+| --- | --- |
+| `EXTRACTION_FAILED:<status>` | The model call did not produce usable output |
+| `MISSING_VALUE:<field>` | A critical value is absent |
+| `INVALID_VALUE:<field>` | A critical value is outside its allowed range |
+| `LOW_CONFIDENCE:<field>` | The model labelled a critical value `low` |
+| `FOIR_TOO_HIGH`, `INCOME_BELOW_MINIMUM`, `AMOUNT_DISPROPORTIONATE` | A lending rule failed |
+
+- A review lists every review cause from rows 2 and 3, in row order and then
+  in `CRITICAL_FIELDS` order, so filtering on one cause finds every case that
+  has it.
+- Each field appears once. A missing or invalid field is not also reported as
+  low confidence; otherwise an all-null extraction would produce ten codes.
+- Decline flags become codes only when the decision is decline. When a review
+  outranks them they stay visible in `risk_flags`, which keeps its earlier
+  meaning: what the checks found. `reason_codes` says why the case got its
+  decision.
+- Only the router writes reason text. `analysis.py` passes it facts.
+
+**Filtering** the review queue by code is deferred to B4, which reworks that
+endpoint for pagination. Options: SQLite `json_each`; a Postgres `JSONB` column
+with `@>` and a GIN index; or a separate `(application_id, code)` table, which
+is portable and indexable on any database.
+
+The precedence is tested as a 16-row truth table covering every combination of
+the four conditions; a guard test fails if a combination is missing.
+
+## 9. Critical fields and confidence policy
+
+**Date:** 2026-11-11 | **Status:** Accepted
+
+The critical fields are `age`, `monthly_income`, `existing_emis`,
+`requested_amount` and `tenure_months`, defined once as `CRITICAL_FIELDS` in
+`app/services/decision.py`. `validate_inputs()` and `low_confidence_fields()`
+both read that constant, so the fields that are validated and the fields
+whose confidence counts cannot drift apart.
+
+A field is critical when validation or the lending rules read it. EMI and FOIR
+use income, existing EMIs, amount and tenure; age is critical because of the
+under-18 check, not because of EMI or FOIR. The rules never read `name`,
+`employer`, `employment_type` or `purpose`, so their confidence does not route
+a case. Before B2, a low score on any of them sent an otherwise clean
+application to a reviewer who could not change the outcome.
+
+Rule for changes: any field that validation or a `LendingPolicy` rule starts
+reading must join `CRITICAL_FIELDS` and get an entry in `FIELD_RULES`. Tests
+fail if a schema field is not classified as critical or non-critical, or if a
+critical field has no validation rule.
+
+**Medium confidence is accepted.** Only `low` routes to review. The C2
+accuracy-by-confidence table will show whether medium-confidence values are
+wrong often enough to review as well.
+
+## 10. B2 decision router rewrite: behaviour differences
+
+**Date:** 2026-11-11 | **Status:** Accepted
+
+`decision.py` and `confidence.py` were rewritten from empty files, tests first.
+
+| Area | Before | After |
+| --- | --- | --- |
+| Low confidence on `name`, `employer`, `employment_type` or `purpose` | Needs review | Ignored; the case is decided on its numbers |
+| Confidence check | `has_low_confidence()` returned a bool for all nine fields | `low_confidence_fields()` returns the critical fields labelled low |
+| Router input | `risk_flags` and a bool | Keyword-only facts: extraction status, missing, invalid and low-confidence fields, decline flags |
+| Router output | `(decision, reason)` | Frozen `RoutingResult` with decision, reason codes and reason |
+| Precedence | Low confidence checked before missing or invalid values | Extraction failure, missing or invalid, low confidence, decline, eligible |
+| Extraction failure | Not represented | Row 1, `EXTRACTION_FAILED:<status>`; wired to the extractor in B3 |
+| Reason text | Built in both `analysis.py` and `decision.py` | Built only in the router |
+| Low-confidence reason | "low-confidence extraction" | Names the fields, e.g. "Low confidence for monthly_income" |
+| Reason codes | None | Returned by both POST routes and both GET routes; stored as JSON |
+| `low_confidence` in the upload response | True if any field was low | True if a critical field was low |
+| Validation | Five `if` statements and a local tuple | `FIELD_RULES` keyed by `CRITICAL_FIELDS`; returns field names |
+| `risk_flags` | Unchanged | Unchanged |
+| Upload route metrics | `Decimal` passed through implicitly | Converted with `float()`, as §4 states |
+
+## 11. Recreate the development database after model changes
+
+**Date:** 2026-11-11 | **Status:** Accepted
+
+`init_db()` calls `create_all()`, which creates missing tables but never alters
+existing ones. B2 added the `reason_codes` column, so a database created
+earlier fails on the first insert with "table applications has no column named
+reason_codes". Tests are unaffected because each run uses a new temporary
+database.
+
+Until migrations exist on `main`, recreate the local database after a model
+change: rename or delete `loanlens.db`, then restart the app.
+`python -m scripts.check_schema` compares the database with the models and
+exits with code 1 when they differ, instead of failing on the first insert.
+
+Production would use an Alembic migration in expand–contract steps: add the
+column as nullable, backfill `[]`, then make it `NOT NULL`, so the running app
+never sees a table it cannot write to.

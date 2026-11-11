@@ -29,6 +29,15 @@ class Confidence(str, Enum):
     medium = "medium"
     low = "low"
 
+class ExtractionStatus(str, Enum):
+    """Outcome of the model call. Anything other than OK sends the case to review."""
+
+    OK = "ok"
+    API_ERROR = "api_error"
+    TIMEOUT = "timeout"
+    REFUSED = "refused"
+    TRUNCATED = "truncated"
+    INVALID_OUTPUT = "invalid_output"
 
 # -------------------------
 # Strict Human Input Schema
@@ -112,6 +121,7 @@ class RiskMetrics(BaseModel):
 class DecisionResponse(BaseModel):
     decision: DecisionType
     reason: str
+    reason_codes: list[str]
 
     applicant: ApplicantData
     metrics: RiskMetrics
@@ -121,6 +131,7 @@ class ExtractionDecisionResponse(BaseModel):
     application_id: int
     decision: DecisionType
     reason: str
+    reason_codes: list[str]
 
     extracted_fields: ExtractedFields
     low_confidence: bool
@@ -137,5 +148,6 @@ class ApplicationRecordResponse(BaseModel):
     risk_flags: list[str]
     decision: DecisionType
     reason: str
+    reason_codes: list[str]
     status: StatusType
     created_at: datetime

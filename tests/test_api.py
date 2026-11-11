@@ -144,6 +144,7 @@ def test_upload_pdf_low_confidence_goes_to_review(monkeypatch):
     assert body["metrics"]["risk_flags"] == []
     assert body["metrics"]["estimated_emi"] > 0
     assert body["metrics"]["foir"] > 0
+    assert body["reason_codes"] == ["LOW_CONFIDENCE:monthly_income"]
 
 
 def test_upload_pdf_missing_value_goes_to_review(monkeypatch):
@@ -177,7 +178,8 @@ def test_upload_pdf_missing_value_goes_to_review(monkeypatch):
     assert body["metrics"]["estimated_emi"] == 0.0
     assert body["metrics"]["foir"] == 0.0
     assert body["metrics"]["risk_flags"] == ["MISSING_CRITICAL_FIELD"]
-
+    # One code per field: missing outranks low confidence for monthly_income.
+    assert body["reason_codes"] == ["MISSING_VALUE:monthly_income"]
 
 def test_upload_non_pdf_returns_400():
     with TestClient(app) as client:
@@ -257,3 +259,110 @@ def test_review_queue_returns_needs_review_application(monkeypatch):
         item["status"] == "needs_review"
         for item in queue
     )
+
+
+# -----------------------------------------
+# B2: reason codes and critical-field review
+# -----------------------------------------
+def upload_pdf(client: TestClient):
+    return client.post(
+        "/api/v1/applications/analyze",
+        files={
+            "file": (
+                "sample_application.pdf",
+                make_text_pdf(),
+                "application/pdf",
+            )
+        },
+    )
+
+
+def fake_extraction(monkeypatch, fields: ExtractedFields) -> None:
+    monkeypatch.setattr(llm_extractor, "_call_claude", lambda raw_text: fields)
+
+
+def test_low_confidence_on_non_critical_field_stays_eligible(monkeypatch):
+    # Behaviour change in B2: a low purpose used to send the case to review.
+    fields = all_high_extracted_fields()
+    fields.purpose.confidence = Confidence.low
+    fake_extraction(monkeypatch, fields)
+
+    with TestClient(app) as client:
+        response = upload_pdf(client)
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["decision"] == "eligible"
+    assert body["low_confidence"] is False
+    assert body["reason_codes"] == []
+
+
+def test_reason_codes_are_returned_stored_and_listed_in_review_queue(monkeypatch):
+    fake_extraction(monkeypatch, low_confidence_extracted_fields())
+
+    with TestClient(app) as client:
+        body = upload_pdf(client).json()
+        record = client.get(f"/api/v1/applications/{body['application_id']}").json()
+        queue = client.get("/api/v1/review-queue").json()
+
+    expected = ["LOW_CONFIDENCE:monthly_income"]
+
+    assert body["reason_codes"] == expected
+    assert record["reason_codes"] == expected
+
+    queued = [item for item in queue if item["id"] == body["application_id"]]
+    assert len(queued) == 1
+    assert queued[0]["reason_codes"] == expected
+
+
+def test_analyze_fields_returns_and_stores_decline_codes():
+    # FOIR = (5,000 + 19,928.59) / 30,000 = 0.83, over the 0.50 limit.
+    applicant = {
+        "name": "Aarav Mehta",
+        "age": 29,
+        "employment_type": "salaried",
+        "employer": "TCS",
+        "monthly_income": 30000,
+        "existing_emis": 5000,
+        "requested_amount": 600000,
+        "tenure_months": 36,
+        "purpose": "home renovation",
+    }
+
+    with TestClient(app) as client:
+        response = client.post(
+            "/api/v1/applications/analyze-fields",
+            json=applicant,
+        )
+
+    assert response.status_code == 200
+    body = response.json()
+
+    assert body["decision"] == "decline"
+    assert body["reason_codes"] == ["FOIR_TOO_HIGH"]
+
+    with SessionLocal() as session:
+        latest = session.query(Application).order_by(Application.id.desc()).first()
+
+    assert latest.reason_codes == ["FOIR_TOO_HIGH"]
+
+
+def test_row_created_without_reason_codes_stores_an_empty_list():
+    # scripts/test_db.py builds rows like this; default=list keeps it working.
+    with TestClient(app):
+        with SessionLocal() as session:
+            row = Application(
+                extracted_fields={},
+                emi=0.0,
+                foir=0.0,
+                risk_flags=[],
+                decision="eligible",
+                reason="Passed all checks.",
+                status="processed",
+            )
+            session.add(row)
+            session.commit()
+            session.refresh(row)
+
+            assert row.reason_codes == []

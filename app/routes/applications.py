@@ -25,7 +25,7 @@ from app.services.pdf_extractor import (
     NoExtractableTextError,
 )
 from app.services.llm_extractor import extract_fields
-from app.services.confidence import has_low_confidence
+from app.services.confidence import low_confidence_fields
 
 router = APIRouter()
 
@@ -57,6 +57,7 @@ def analyze_application_fields(
         risk_flags=result.risk_flags,
         decision=result.decision.value,
         reason=result.reason,
+        reason_codes=result.reason_codes,
         status=status.value,
     )
 
@@ -71,6 +72,7 @@ def analyze_application_fields(
     return DecisionResponse(
         decision=result.decision,
         reason=result.reason,
+        reason_codes=result.reason_codes,
         applicant=applicant,
         metrics=RiskMetrics(
             estimated_emi=float(result.emi),
@@ -111,7 +113,8 @@ async def analyze_application_upload(
         )
 
     extracted = extract_fields(text)
-    low_conf = has_low_confidence(extracted)
+    low_fields = low_confidence_fields(extracted)
+    low_conf = bool(low_fields)
 
     applicant_data = {
         "name": extracted.name.value,
@@ -127,7 +130,7 @@ async def analyze_application_upload(
 
     result = analyze_applicant(
         applicant_data,
-        has_low_confidence=low_conf,
+        low_confidence_fields=low_fields,
     )
 
     status = (
@@ -142,11 +145,12 @@ async def analyze_application_upload(
             "filename": file.filename,
             "fields": extracted.model_dump(),
         },
-        emi=result.emi,
-        foir=result.foir,
+        emi=float(result.emi),
+        foir=float(result.foir),
         risk_flags=result.risk_flags,
         decision=result.decision.value,
         reason=result.reason,
+        reason_codes=result.reason_codes,
         status=status.value,
     )
 
@@ -162,11 +166,12 @@ async def analyze_application_upload(
         application_id=db_row.id,
         decision=result.decision,
         reason=result.reason,
+        reason_codes=result.reason_codes,
         extracted_fields=extracted,
         low_confidence=low_conf,
         metrics=RiskMetrics(
-            estimated_emi=result.emi,
-            foir=result.foir,
+            estimated_emi=float(result.emi),
+            foir=float(result.foir),
             risk_flags=result.risk_flags,
         ),
     )
